@@ -1,5 +1,8 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../services/auth_service.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -19,6 +22,12 @@ class _SignupScreenState extends State<SignupScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
+  AuthService? _authService;
+  bool _isSubmitting = false;
+  String? _submissionError;
+
+  AuthService get _auth => _authService ??= AuthService();
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -35,7 +44,11 @@ class _SignupScreenState extends State<SignupScreen> {
     }
   }
 
-  void _createAccount() {
+  Future<void> _createAccount() async {
+    if (_isSubmitting) {
+      return;
+    }
+
     FocusScope.of(context).unfocus();
 
     if (!(_formKey.currentState?.validate() ?? false)) {
@@ -46,14 +59,56 @@ class _SignupScreenState extends State<SignupScreen> {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
-    debugPrint('Signup form submitted:');
-    debugPrint('Name: $name');
-    debugPrint('Email: $email');
-    debugPrint('Password length: ${password.length} characters');
+    setState(() {
+      _isSubmitting = true;
+      _submissionError = null;
+    });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Form submitted. Check the debug console.')),
-    );
+    try {
+      await _auth.createAccount(name: name, email: email, password: password);
+
+      if (!mounted) {
+        return;
+      }
+
+      context.go('/home');
+    } on FirebaseAuthException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isSubmitting = false;
+        _submissionError = _messageForAuthError(error.code);
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isSubmitting = false;
+        _submissionError =
+            'We could not create your account. Please try again.';
+      });
+    }
+  }
+
+  String _messageForAuthError(String code) {
+    return switch (code) {
+      'email-already-in-use' =>
+        'An account already exists for this email. Try logging in instead.',
+      'invalid-email' => 'Please enter a valid email address.',
+      'weak-password' =>
+        'That password is too weak. Please choose a stronger password.',
+      'operation-not-allowed' =>
+        'Email signup is currently unavailable. Please try again later.',
+      'network-request-failed' =>
+        'Could not connect. Please check your internet connection.',
+      'too-many-requests' =>
+        'Too many attempts. Please wait a moment and try again.',
+      _ => 'We could not create your account. Please try again.',
+    };
   }
 
   String? _validateName(String? value) {
@@ -214,7 +269,7 @@ class _SignupScreenState extends State<SignupScreen> {
                             width: double.infinity,
                             height: 52,
                             child: ElevatedButton(
-                              onPressed: _createAccount,
+                              onPressed: _isSubmitting ? null : _createAccount,
                               style: ElevatedButton.styleFrom(
                                 elevation: 0,
                                 foregroundColor: Colors.white,
@@ -225,9 +280,34 @@ class _SignupScreenState extends State<SignupScreen> {
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
-                              child: const Text('Create account'),
+                              child: _isSubmitting
+                                  ? const SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.5,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Text('Create account'),
                             ),
                           ),
+                          if (_submissionError != null) ...[
+                            const SizedBox(height: 14),
+                            Semantics(
+                              liveRegion: true,
+                              child: Text(
+                                _submissionError!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Color(0xFFB3261E),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  height: 1.35,
+                                ),
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 32),
                           TextButton(
                             onPressed: () {

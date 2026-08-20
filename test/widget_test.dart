@@ -80,7 +80,7 @@ void main() {
     expect(find.text('Welcome back'), findsOneWidget);
   });
 
-  testWidgets('signup validates and locally submits form data', (
+  testWidgets('signup validates form data before authentication', (
     WidgetTester tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -99,19 +99,6 @@ void main() {
     expect(find.text('Please enter your email.'), findsOneWidget);
     expect(find.text('Please create a password.'), findsOneWidget);
 
-    await tester.enterText(find.byType(TextFormField).at(0), 'Reader');
-    await tester.enterText(
-      find.byType(TextFormField).at(1),
-      'reader@example.com',
-    );
-    await tester.enterText(find.byType(TextFormField).at(2), 'password123');
-    await tester.tap(find.text('Create account'));
-    await tester.pump();
-
-    expect(
-      find.text('Form submitted. Check the debug console.'),
-      findsOneWidget,
-    );
     expect(find.text('Create your account'), findsOneWidget);
   });
 }
