@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 class WelcomeScreen extends StatelessWidget {
-  const WelcomeScreen({super.key, this.onGetStarted, this.onLogIn});
-
-  final VoidCallback? onGetStarted;
-  final VoidCallback? onLogIn;
+  const WelcomeScreen({super.key});
 
   static const Color _background = Color(0xFFF8F2FF);
   static const Color _ink = Color(0xFF161A2D);
   static const Color _muted = Color(0xFF6F7287);
   static const Color _purple = Color(0xFF7A61E8);
+
+  void _openSignup(BuildContext context) {
+    context.push('/signup');
+  }
+
+  void _openLogin(BuildContext context) {
+    context.push('/login');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -115,7 +121,7 @@ class WelcomeScreen extends StatelessWidget {
                           width: double.infinity,
                           height: 52,
                           child: ElevatedButton(
-                            onPressed: onGetStarted ?? () {},
+                            onPressed: () => _openSignup(context),
                             style: ElevatedButton.styleFrom(
                               elevation: 0,
                               backgroundColor: _purple,
@@ -134,7 +140,7 @@ class WelcomeScreen extends StatelessWidget {
                           width: double.infinity,
                           height: 52,
                           child: OutlinedButton(
-                            onPressed: onLogIn ?? () {},
+                            onPressed: () => _openLogin(context),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: _purple,
                               backgroundColor: Colors.white,

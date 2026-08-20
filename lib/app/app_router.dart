@@ -19,38 +19,15 @@ GoRouter createAppRouter() {
     routes: [
       GoRoute(
         path: AppRoutes.welcome,
-        builder: (context, state) {
-          return WelcomeScreen(
-            onGetStarted: () => context.push(AppRoutes.signup),
-            onLogIn: () => context.push(AppRoutes.login),
-          );
-        },
+        builder: (context, state) => const WelcomeScreen(),
       ),
       GoRoute(
         path: AppRoutes.login,
-        builder: (context, state) {
-          return LoginScreen(
-            onBack: () => _goBackOrWelcome(context),
-            onLogIn: (email, password) => context.go(AppRoutes.home),
-            onCreateAccount: () {
-              context.pushReplacement(AppRoutes.signup);
-            },
-          );
-        },
+        builder: (context, state) => const LoginScreen(),
       ),
       GoRoute(
         path: AppRoutes.signup,
-        builder: (context, state) {
-          return SignupScreen(
-            onBack: () => _goBackOrWelcome(context),
-            onCreateAccount: (name, email, password) {
-              context.go(AppRoutes.home);
-            },
-            onLogIn: () {
-              context.pushReplacement(AppRoutes.login);
-            },
-          );
-        },
+        builder: (context, state) => const SignupScreen(),
       ),
       GoRoute(
         path: AppRoutes.home,
@@ -75,12 +52,4 @@ GoRouter createAppRouter() {
       );
     },
   );
-}
-
-void _goBackOrWelcome(BuildContext context) {
-  if (context.canPop()) {
-    context.pop();
-  } else {
-    context.go(AppRoutes.welcome);
-  }
 }

@@ -1,20 +1,8 @@
 import 'package:flutter/material.dart';
-
-typedef LoginCallback = void Function(String email, String password);
+import 'package:go_router/go_router.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({
-    super.key,
-    this.onBack,
-    this.onLogIn,
-    this.onForgotPassword,
-    this.onCreateAccount,
-  });
-
-  final VoidCallback? onBack;
-  final LoginCallback? onLogIn;
-  final VoidCallback? onForgotPassword;
-  final VoidCallback? onCreateAccount;
+  const LoginScreen({super.key});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -26,6 +14,9 @@ class _LoginScreenState extends State<LoginScreen> {
   static const Color _muted = Color(0xFF707487);
   static const Color _purple = Color(0xFF7A61E8);
 
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final GlobalKey<FormFieldState<String>> _emailFieldKey =
+      GlobalKey<FormFieldState<String>>();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
@@ -37,30 +28,75 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _goBack() {
-    if (widget.onBack != null) {
-      widget.onBack!();
-      return;
-    }
-
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/');
     }
   }
 
   void _logIn() {
     FocusScope.of(context).unfocus();
 
-    final email = _emailController.text.trim();
-    final password = _passwordController.text;
-
-    if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your email and password.')),
-      );
+    if (!(_formKey.currentState?.validate() ?? false)) {
       return;
     }
 
-    widget.onLogIn?.call(email, password);
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    debugPrint('Login form submitted:');
+    debugPrint('Email: $email');
+    debugPrint('Password length: ${password.length} characters');
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Form submitted. Check the debug console.')),
+    );
+  }
+
+  void _forgotPassword() {
+    FocusScope.of(context).unfocus();
+
+    if (!(_emailFieldKey.currentState?.validate() ?? false)) {
+      return;
+    }
+
+    final email = _emailController.text.trim();
+    debugPrint('Password reset requested for: $email');
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Password reset request logged for testing.'),
+      ),
+    );
+  }
+
+  String? _validateEmail(String? value) {
+    final email = value?.trim() ?? '';
+
+    if (email.isEmpty) {
+      return 'Please enter your email.';
+    }
+
+    final emailPattern = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
+    if (!emailPattern.hasMatch(email)) {
+      return 'Please enter a valid email address.';
+    }
+
+    return null;
+  }
+
+  String? _validatePassword(String? value) {
+    final password = value ?? '';
+
+    if (password.isEmpty) {
+      return 'Please enter your password.';
+    }
+    if (password.length < 8) {
+      return 'Password must be at least 8 characters.';
+    }
+
+    return null;
   }
 
   @override
@@ -130,31 +166,45 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                           const SizedBox(height: 91),
-                          _LoginTextField(
-                            controller: _emailController,
-                            label: 'Email',
-                            hintText: 'you@example.com',
-                            icon: Icons.mail_outline_rounded,
-                            keyboardType: TextInputType.emailAddress,
-                            textInputAction: TextInputAction.next,
-                            autofillHints: const [AutofillHints.email],
-                          ),
-                          const SizedBox(height: 26),
-                          _LoginTextField(
-                            controller: _passwordController,
-                            label: 'Password',
-                            hintText: 'Enter your password',
-                            icon: Icons.lock_outline_rounded,
-                            obscureText: true,
-                            textInputAction: TextInputAction.done,
-                            autofillHints: const [AutofillHints.password],
-                            onSubmitted: (_) => _logIn(),
+                          AutofillGroup(
+                            child: Form(
+                              key: _formKey,
+                              child: Column(
+                                children: [
+                                  _LoginTextField(
+                                    key: _emailFieldKey,
+                                    controller: _emailController,
+                                    label: 'Email',
+                                    hintText: 'you@example.com',
+                                    icon: Icons.mail_outline_rounded,
+                                    validator: _validateEmail,
+                                    keyboardType: TextInputType.emailAddress,
+                                    textInputAction: TextInputAction.next,
+                                    autofillHints: const [AutofillHints.email],
+                                  ),
+                                  const SizedBox(height: 26),
+                                  _LoginTextField(
+                                    controller: _passwordController,
+                                    label: 'Password',
+                                    hintText: 'Enter your password',
+                                    icon: Icons.lock_outline_rounded,
+                                    validator: _validatePassword,
+                                    obscureText: true,
+                                    textInputAction: TextInputAction.done,
+                                    autofillHints: const [
+                                      AutofillHints.password,
+                                    ],
+                                    onFieldSubmitted: (_) => _logIn(),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                           const SizedBox(height: 12),
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
-                              onPressed: widget.onForgotPassword ?? () {},
+                              onPressed: _forgotPassword,
                               style: TextButton.styleFrom(
                                 foregroundColor: _purple,
                                 padding: const EdgeInsets.symmetric(
@@ -191,7 +241,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 38),
                           TextButton(
-                            onPressed: widget.onCreateAccount ?? () {},
+                            onPressed: () {
+                              context.pushReplacement('/signup');
+                            },
                             style: TextButton.styleFrom(
                               foregroundColor: _purple,
                               padding: const EdgeInsets.symmetric(
@@ -276,32 +328,35 @@ class _LoginHeader extends StatelessWidget {
 
 class _LoginTextField extends StatelessWidget {
   const _LoginTextField({
+    super.key,
     required this.controller,
     required this.label,
     required this.hintText,
     required this.icon,
+    required this.validator,
     required this.textInputAction,
     required this.autofillHints,
     this.keyboardType,
     this.obscureText = false,
-    this.onSubmitted,
+    this.onFieldSubmitted,
   });
 
   final TextEditingController controller;
   final String label;
   final String hintText;
   final IconData icon;
+  final FormFieldValidator<String> validator;
   final TextInputType? keyboardType;
   final TextInputAction textInputAction;
   final Iterable<String> autofillHints;
   final bool obscureText;
-  final ValueChanged<String>? onSubmitted;
+  final ValueChanged<String>? onFieldSubmitted;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 59,
-      padding: const EdgeInsets.symmetric(horizontal: 18),
+      constraints: const BoxConstraints(minHeight: 59),
+      padding: const EdgeInsets.fromLTRB(18, 8, 18, 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -314,46 +369,48 @@ class _LoginTextField extends StatelessWidget {
         ],
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Icon(icon, color: _LoginScreenState._muted, size: 25),
           const SizedBox(width: 16),
           Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: _LoginScreenState._muted,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
+            child: TextFormField(
+              controller: controller,
+              validator: validator,
+              keyboardType: keyboardType,
+              textInputAction: textInputAction,
+              obscureText: obscureText,
+              autofillHints: autofillHints,
+              onFieldSubmitted: onFieldSubmitted,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
+              style: const TextStyle(
+                color: _LoginScreenState._ink,
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                height: 1.2,
+              ),
+              decoration: InputDecoration(
+                labelText: label,
+                hintText: hintText,
+                isDense: true,
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.zero,
+                labelStyle: const TextStyle(
+                  color: _LoginScreenState._muted,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
                 ),
-                const SizedBox(height: 2),
-                TextField(
-                  controller: controller,
-                  keyboardType: keyboardType,
-                  textInputAction: textInputAction,
-                  obscureText: obscureText,
-                  autofillHints: autofillHints,
-                  onSubmitted: onSubmitted,
-                  style: const TextStyle(
-                    color: _LoginScreenState._ink,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                    height: 1.2,
-                  ),
-                  decoration: InputDecoration.collapsed(
-                    hintText: hintText,
-                    hintStyle: const TextStyle(
-                      color: Color(0xFFA1A3B1),
-                      fontSize: 15,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
+                hintStyle: const TextStyle(
+                  color: Color(0xFFA1A3B1),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w400,
                 ),
-              ],
+                errorStyle: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  height: 1.1,
+                ),
+              ),
             ),
           ),
         ],
