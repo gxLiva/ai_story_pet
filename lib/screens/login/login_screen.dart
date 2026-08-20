@@ -1,5 +1,8 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -20,6 +23,12 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
+  AuthService? _authService;
+  bool _isSubmitting = false;
+  String? _submissionError;
+
+  AuthService get _auth => _authService ??= AuthService();
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -35,7 +44,11 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _logIn() {
+  Future<void> _logIn() async {
+    if (_isSubmitting) {
+      return;
+    }
+
     FocusScope.of(context).unfocus();
 
     if (!(_formKey.currentState?.validate() ?? false)) {
@@ -45,13 +58,53 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
-    debugPrint('Login form submitted:');
-    debugPrint('Email: $email');
-    debugPrint('Password length: ${password.length} characters');
+    setState(() {
+      _isSubmitting = true;
+      _submissionError = null;
+    });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Form submitted. Check the debug console.')),
-    );
+    try {
+      await _auth.logIn(email: email, password: password);
+
+      if (!mounted) {
+        return;
+      }
+
+      context.go('/home');
+    } on FirebaseAuthException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isSubmitting = false;
+        _submissionError = _messageForAuthError(error.code);
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isSubmitting = false;
+        _submissionError = 'Unable to log in. Please try again.';
+      });
+    }
+  }
+
+  String _messageForAuthError(String code) {
+    return switch (code) {
+      'invalid-credential' ||
+      'user-not-found' ||
+      'wrong-password' ||
+      'invalid-email' => 'Incorrect email or password',
+      'user-disabled' => 'This account has been disabled.',
+      'network-request-failed' =>
+        'Could not connect. Please check your internet connection.',
+      'too-many-requests' =>
+        'Too many attempts. Please wait a moment and try again.',
+      _ => 'Unable to log in. Please try again.',
+    };
   }
 
   void _forgotPassword() {
@@ -225,7 +278,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             width: double.infinity,
                             height: 52,
                             child: ElevatedButton(
-                              onPressed: _logIn,
+                              onPressed: _isSubmitting ? null : _logIn,
                               style: ElevatedButton.styleFrom(
                                 elevation: 0,
                                 foregroundColor: Colors.white,
@@ -236,9 +289,34 @@ class _LoginScreenState extends State<LoginScreen> {
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
-                              child: const Text('Log in'),
+                              child: _isSubmitting
+                                  ? const SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.5,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Text('Log in'),
                             ),
                           ),
+                          if (_submissionError != null) ...[
+                            const SizedBox(height: 14),
+                            Semantics(
+                              liveRegion: true,
+                              child: Text(
+                                _submissionError!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Color(0xFFB3261E),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  height: 1.35,
+                                ),
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 38),
                           TextButton(
                             onPressed: () {

@@ -1,16 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../services/auth_service.dart';
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({
-    super.key,
-    this.userName = 'Oliver',
-    this.onStartStory,
-    this.onNotificationTap,
-  });
+  const HomeScreen({super.key, this.onStartStory});
 
-  final String userName;
   final VoidCallback? onStartStory;
-  final VoidCallback? onNotificationTap;
 
   static const Color _background = Color(0xFFF9F5FF);
   static const Color _ink = Color(0xFF111626);
@@ -28,10 +24,7 @@ class HomeScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _HomeHeader(
-                userName: userName,
-                onNotificationTap: onNotificationTap,
-              ),
+              const _HomeHeader(),
               const SizedBox(height: 22),
               _LumiStoryCard(onStartStory: onStartStory),
               const SizedBox(height: 20),
@@ -79,11 +72,69 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _HomeHeader extends StatelessWidget {
-  const _HomeHeader({required this.userName, this.onNotificationTap});
+class _HomeHeader extends StatefulWidget {
+  const _HomeHeader();
 
-  final String userName;
-  final VoidCallback? onNotificationTap;
+  @override
+  State<_HomeHeader> createState() => _HomeHeaderState();
+}
+
+class _HomeHeaderState extends State<_HomeHeader> {
+  AuthService? _authService;
+  bool _isLoggingOut = false;
+
+  AuthService get _auth => _authService ??= AuthService();
+
+  String get _userName {
+    final user = _auth.currentUser;
+    final displayName = user?.displayName?.trim();
+
+    if (displayName != null && displayName.isNotEmpty) {
+      return displayName;
+    }
+
+    final email = user?.email?.trim();
+    if (email != null && email.isNotEmpty) {
+      final emailName = email.split('@').first.trim();
+      if (emailName.isNotEmpty) {
+        return emailName;
+      }
+    }
+
+    return 'Reader';
+  }
+
+  Future<void> _logOut() async {
+    if (_isLoggingOut) {
+      return;
+    }
+
+    setState(() {
+      _isLoggingOut = true;
+    });
+
+    try {
+      await _auth.logOut();
+
+      if (!mounted) {
+        return;
+      }
+
+      context.go('/');
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isLoggingOut = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to log out. Please try again.')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -104,7 +155,7 @@ class _HomeHeader extends StatelessWidget {
             ),
             const SizedBox(height: 3),
             Text(
-              '$userName 👋',
+              '$_userName 👋',
               style: const TextStyle(
                 color: HomeScreen._ink,
                 fontSize: 27,
@@ -114,36 +165,27 @@ class _HomeHeader extends StatelessWidget {
             ),
           ],
         ),
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Material(
-              color: const Color(0xFFF2E4FA),
-              shape: const CircleBorder(),
-              child: IconButton(
-                onPressed: onNotificationTap ?? () {},
-                tooltip: 'Notifications',
-                icon: const Icon(
-                  Icons.notifications_rounded,
-                  color: HomeScreen._purple,
-                  size: 22,
-                ),
-              ),
-            ),
-            Positioned(
-              top: 1,
-              right: 1,
-              child: Container(
-                width: 11,
-                height: 11,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFC74F),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 1.5),
-                ),
-              ),
-            ),
-          ],
+        Material(
+          color: const Color(0xFFF2E4FA),
+          shape: const CircleBorder(),
+          child: IconButton(
+            onPressed: _isLoggingOut ? null : _logOut,
+            tooltip: 'Log out',
+            icon: _isLoggingOut
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      color: HomeScreen._purple,
+                    ),
+                  )
+                : const Icon(
+                    Icons.logout_rounded,
+                    color: HomeScreen._purple,
+                    size: 22,
+                  ),
+          ),
         ),
       ],
     );
