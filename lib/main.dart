@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app/story_pet_app.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -9,5 +10,5 @@ Future<void> main() async {
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  runApp(const StoryPetApp());
+  runApp(const ProviderScope(child: StoryPetApp()));
 }

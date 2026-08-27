@@ -1,36 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app_router.dart';
 
-class StoryPetApp extends StatefulWidget {
+class StoryPetApp extends ConsumerWidget {
   const StoryPetApp({super.key});
 
   @override
-  State<StoryPetApp> createState() => _StoryPetAppState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final router = ref.watch(appRouterProvider);
 
-class _StoryPetAppState extends State<StoryPetApp> {
-  late final GoRouter _router;
-
-  @override
-  void initState() {
-    super.initState();
-    _router = createAppRouter();
-  }
-
-  @override
-  void dispose() {
-    _router.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
     return MaterialApp.router(
       title: 'AI Story Pet',
       debugShowCheckedModeBanner: false,
-      routerConfig: _router,
+      routerConfig: router,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         scaffoldBackgroundColor: const Color(0xFFF8F2FF),

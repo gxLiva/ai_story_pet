@@ -1,8 +1,23 @@
 import 'package:ai_story_pet/app/story_pet_app.dart';
+import 'package:ai_story_pet/providers/auth_providers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 void main() {
+  Future<void> pumpSignedOutApp(WidgetTester tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateProvider.overrideWith((ref) => Stream.value(null)),
+        ],
+        child: const StoryPetApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
   testWidgets('navigates between welcome, login, and signup with go_router', (
     WidgetTester tester,
   ) async {
@@ -11,7 +26,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const StoryPetApp());
+    await pumpSignedOutApp(tester);
 
     expect(find.text('AI Story Pet'), findsOneWidget);
     expect(find.text('Get started'), findsOneWidget);
@@ -55,7 +70,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const StoryPetApp());
+    await pumpSignedOutApp(tester);
     await tester.tap(find.text('Log in'));
     await tester.pumpAndSettle();
 
@@ -76,7 +91,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const StoryPetApp());
+    await pumpSignedOutApp(tester);
     await tester.tap(find.text('Get started'));
     await tester.pumpAndSettle();
 
@@ -88,5 +103,17 @@ void main() {
     expect(find.text('Please create a password.'), findsOneWidget);
 
     expect(find.text('Create your account'), findsOneWidget);
+  });
+
+  testWidgets('redirects signed-out users away from the home route', (
+    WidgetTester tester,
+  ) async {
+    await pumpSignedOutApp(tester);
+
+    GoRouter.of(tester.element(find.text('AI Story Pet').first)).go('/home');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Get started'), findsOneWidget);
+    expect(find.text('Keep reading 📖'), findsNothing);
   });
 }

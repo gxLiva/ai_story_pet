@@ -1,13 +1,13 @@
 import 'package:firebase_auth/firebase_auth.dart';
 
-/// Provides the app's Firebase Authentication operations.
+/// Provides access to the app's Firebase Authentication data source.
 ///
 /// Firebase must be initialized before the default constructor is used.
 /// Authentication errors are intentionally allowed to propagate as
 /// [FirebaseAuthException] so the calling screen can display an appropriate
 /// message.
-class AuthService {
-  AuthService({FirebaseAuth? firebaseAuth})
+class AuthRepository {
+  AuthRepository({FirebaseAuth? firebaseAuth})
     : _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance;
 
   final FirebaseAuth _firebaseAuth;

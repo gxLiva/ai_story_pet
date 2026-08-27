@@ -1,17 +1,18 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../services/auth_service.dart';
+import '../../providers/auth_providers.dart';
 
-class SignupScreen extends StatefulWidget {
+class SignupScreen extends ConsumerStatefulWidget {
   const SignupScreen({super.key});
 
   @override
-  State<SignupScreen> createState() => _SignupScreenState();
+  ConsumerState<SignupScreen> createState() => _SignupScreenState();
 }
 
-class _SignupScreenState extends State<SignupScreen> {
+class _SignupScreenState extends ConsumerState<SignupScreen> {
   static const Color _background = Color(0xFFF8F2FF);
   static const Color _ink = Color(0xFF151A2D);
   static const Color _muted = Color(0xFF707487);
@@ -22,11 +23,8 @@ class _SignupScreenState extends State<SignupScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  AuthService? _authService;
   bool _isSubmitting = false;
   String? _submissionError;
-
-  AuthService get _auth => _authService ??= AuthService();
 
   @override
   void dispose() {
@@ -65,13 +63,9 @@ class _SignupScreenState extends State<SignupScreen> {
     });
 
     try {
-      await _auth.createAccount(name: name, email: email, password: password);
-
-      if (!mounted) {
-        return;
-      }
-
-      context.go('/home');
+      await ref
+          .read(authRepositoryProvider)
+          .createAccount(name: name, email: email, password: password);
     } on FirebaseAuthException catch (error) {
       if (!mounted) {
         return;

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../services/auth_service.dart';
+import '../../providers/auth_providers.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key, this.onStartStory});
@@ -72,21 +72,18 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _HomeHeader extends StatefulWidget {
+class _HomeHeader extends ConsumerStatefulWidget {
   const _HomeHeader();
 
   @override
-  State<_HomeHeader> createState() => _HomeHeaderState();
+  ConsumerState<_HomeHeader> createState() => _HomeHeaderState();
 }
 
-class _HomeHeaderState extends State<_HomeHeader> {
-  AuthService? _authService;
+class _HomeHeaderState extends ConsumerState<_HomeHeader> {
   bool _isLoggingOut = false;
 
-  AuthService get _auth => _authService ??= AuthService();
-
-  String get _userName {
-    final user = _auth.currentUser;
+  String _userName() {
+    final user = ref.watch(currentUserProvider);
     final displayName = user?.displayName?.trim();
 
     if (displayName != null && displayName.isNotEmpty) {
@@ -114,13 +111,7 @@ class _HomeHeaderState extends State<_HomeHeader> {
     });
 
     try {
-      await _auth.logOut();
-
-      if (!mounted) {
-        return;
-      }
-
-      context.go('/');
+      await ref.read(authRepositoryProvider).logOut();
     } catch (_) {
       if (!mounted) {
         return;
@@ -138,6 +129,8 @@ class _HomeHeaderState extends State<_HomeHeader> {
 
   @override
   Widget build(BuildContext context) {
+    final userName = _userName();
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -155,7 +148,7 @@ class _HomeHeaderState extends State<_HomeHeader> {
             ),
             const SizedBox(height: 3),
             Text(
-              '$_userName 👋',
+              '$userName 👋',
               style: const TextStyle(
                 color: HomeScreen._ink,
                 fontSize: 27,
