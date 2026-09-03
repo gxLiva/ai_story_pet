@@ -15,9 +15,9 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _background,
-      body: SafeArea(
+    return ColoredBox(
+      color: _background,
+      child: SafeArea(
         bottom: false,
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(28, 18, 28, 34),
@@ -67,7 +67,6 @@ class HomeScreen extends StatelessWidget {
           ),
         ),
       ),
-      bottomNavigationBar: const _HomeNavigationBar(),
     );
   }
 }
@@ -531,46 +530,6 @@ class _ReadingCard extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _HomeNavigationBar extends StatelessWidget {
-  const _HomeNavigationBar();
-
-  @override
-  Widget build(BuildContext context) {
-    return BottomNavigationBar(
-      currentIndex: 0,
-      onTap: (_) {},
-      type: BottomNavigationBarType.fixed,
-      backgroundColor: Colors.white,
-      selectedItemColor: HomeScreen._purple,
-      unselectedItemColor: const Color(0xFFB6AACA),
-      selectedFontSize: 11,
-      unselectedFontSize: 11,
-      selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),
-      unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
-      iconSize: 27,
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: 'Home'),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.menu_book_rounded),
-          label: 'Library',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.extension_rounded),
-          label: 'Practice',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.show_chart_rounded),
-          label: 'Growth',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person_rounded),
-          label: 'Profile',
-        ),
-      ],
     );
   }
 }

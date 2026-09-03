@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../providers/auth_providers.dart';
+import '../../providers/user_profile_providers.dart';
 
 class SignupScreen extends ConsumerStatefulWidget {
   const SignupScreen({super.key});
@@ -63,9 +64,22 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     });
 
     try {
-      await ref
-          .read(authRepositoryProvider)
-          .createAccount(name: name, email: email, password: password);
+      final authRepository = ref.read(authRepositoryProvider);
+      final profileRepository = ref.read(userProfileRepositoryProvider);
+      final credential = await authRepository.createAccount(
+        name: name,
+        email: email,
+        password: password,
+      );
+      final user = credential.user;
+      if (user == null) {
+        throw StateError('Account created without a Firebase user.');
+      }
+      await profileRepository.createProfileIfMissing(
+        userId: user.uid,
+        name: name,
+        email: email,
+      );
     } on FirebaseAuthException catch (error) {
       if (!mounted) {
         return;
