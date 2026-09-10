@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../widgets/app_bottom_navigation_bar.dart';
+import '../features/navigation/presentation/widgets/app_bottom_navigation_bar.dart';
 
 class AppShell extends StatelessWidget {
   const AppShell({super.key, required this.navigationShell});

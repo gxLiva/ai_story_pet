@@ -4,9 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../repositories/auth_repository.dart';
-import '../repositories/user_profile_repository.dart';
-import 'user_profile_providers.dart';
+import '../../profile/providers/user_profile_providers.dart';
+import '../../profile/repository/user_profile_repository.dart';
+import '../repository/auth_repository.dart';
 
 /// Provides the Firebase Authentication instance used by the app.
 ///

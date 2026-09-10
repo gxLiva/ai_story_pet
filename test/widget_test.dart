@@ -1,8 +1,8 @@
 import 'package:ai_story_pet/app/app_shell.dart';
 import 'package:ai_story_pet/app/story_pet_app.dart';
-import 'package:ai_story_pet/providers/auth_providers.dart';
-import 'package:ai_story_pet/screens/onboarding/onboarding_screen.dart';
-import 'package:ai_story_pet/widgets/app_bottom_navigation_bar.dart';
+import 'package:ai_story_pet/features/auth/providers/auth_providers.dart';
+import 'package:ai_story_pet/features/navigation/presentation/widgets/app_bottom_navigation_bar.dart';
+import 'package:ai_story_pet/features/onboarding/presentation/screens/onboarding_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

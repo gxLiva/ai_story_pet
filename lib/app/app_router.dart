@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../providers/auth_providers.dart';
-import '../screens/home/home_screen.dart';
-import '../screens/login/login_screen.dart';
-import '../screens/onboarding/onboarding_screen.dart';
-import '../screens/placeholder/tab_placeholder_screen.dart';
-import '../screens/signup/signup_screen.dart';
-import '../screens/welcome/welcome_screen.dart';
+import '../features/auth/presentation/screens/login_screen.dart';
+import '../features/auth/presentation/screens/signup_screen.dart';
+import '../features/auth/presentation/screens/welcome_screen.dart';
+import '../features/auth/providers/auth_providers.dart';
+import '../features/home/presentation/screens/home_screen.dart';
+import '../features/navigation/presentation/screens/tab_placeholder_screen.dart';
+import '../features/onboarding/presentation/screens/onboarding_screen.dart';
 import 'app_shell.dart';
 
 abstract final class AppRoutes {
