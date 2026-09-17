@@ -9,6 +9,8 @@ import '../features/auth/providers/auth_providers.dart';
 import '../features/home/presentation/screens/home_screen.dart';
 import '../features/navigation/presentation/screens/tab_placeholder_screen.dart';
 import '../features/onboarding/presentation/screens/onboarding_screen.dart';
+import '../features/stories/presentation/screens/feeling_check_screen.dart';
+import '../features/stories/presentation/screens/story_screen.dart';
 import 'app_shell.dart';
 
 abstract final class AppRoutes {
@@ -22,6 +24,13 @@ abstract final class AppRoutes {
   static const practice = '/practice';
   static const growth = '/growth';
   static const profile = '/profile';
+  static const story = '/story/:storyId';
+
+  static String storyPath(String storyId) => '/story/$storyId';
+
+  static String feelingCheckPath(String storyId, String checkId) {
+    return '/story/$storyId/feeling-check/$checkId';
+  }
 }
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -48,9 +57,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           location == AppRoutes.practice ||
           location == AppRoutes.growth ||
           location == AppRoutes.profile;
+      final isOnProtectedRoute =
+          isOnShellRoute || location.startsWith('/story/');
 
       if (session.status == AppSessionStatus.signedOut) {
-        if (isOnSplash || isOnShellRoute || location == AppRoutes.onboarding) {
+        if (isOnSplash ||
+            isOnProtectedRoute ||
+            location == AppRoutes.onboarding) {
           return AppRoutes.welcome;
         }
         return null;
@@ -86,6 +99,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.onboarding,
         builder: (context, state) => const OnboardingScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.story,
+        builder: (context, state) =>
+            StoryScreen(storyId: state.pathParameters['storyId']!),
+        routes: [
+          GoRoute(
+            path: 'feeling-check/:checkId',
+            builder: (context, state) => FeelingCheckScreen(
+              storyId: state.pathParameters['storyId']!,
+              checkId: state.pathParameters['checkId']!,
+            ),
+          ),
+        ],
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {

@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../app/app_router.dart';
 import '../../../auth/providers/auth_providers.dart';
+import '../../../stories/providers/story_providers.dart';
+import '../../../stories/repository/story_repository.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key, this.onStartStory});
 
   final VoidCallback? onStartStory;
@@ -14,7 +18,22 @@ class HomeScreen extends StatelessWidget {
   static const Color _purple = Color(0xFF7561E8);
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final story = ref.watch(storyProvider(miaStoryId));
+    final readingState = ref.watch(storyReadingProvider);
+    final pageCount = story?.pages.length ?? 1;
+    final currentPage =
+        readingState.currentPageIndex.clamp(0, pageCount - 1) + 1;
+    final progress = currentPage / pageCount;
+
+    void openMiaStory() {
+      if (onStartStory != null) {
+        onStartStory!();
+      } else {
+        context.push(AppRoutes.storyPath(miaStoryId));
+      }
+    }
+
     return ColoredBox(
       color: _background,
       child: SafeArea(
@@ -26,7 +45,7 @@ class HomeScreen extends StatelessWidget {
             children: [
               const _HomeHeader(),
               const SizedBox(height: 22),
-              _LumiStoryCard(onStartStory: onStartStory),
+              _LumiStoryCard(onStartStory: openMiaStory),
               const SizedBox(height: 20),
               const Row(
                 children: [
@@ -62,7 +81,12 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 14),
-              const _ReadingCard(),
+              _ReadingCard(
+                currentPage: currentPage,
+                pageCount: pageCount,
+                progress: progress,
+                onTap: openMiaStory,
+              ),
             ],
           ),
         ),
@@ -404,131 +428,151 @@ class _ProgressCard extends StatelessWidget {
 }
 
 class _ReadingCard extends StatelessWidget {
-  const _ReadingCard();
+  const _ReadingCard({
+    required this.currentPage,
+    required this.pageCount,
+    required this.progress,
+    required this.onTap,
+  });
+
+  final int currentPage;
+  final int pageCount;
+  final double progress;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0D48347A),
-            blurRadius: 22,
-            offset: Offset(0, 10),
+    return Semantics(
+      button: true,
+      label: 'Continue Mia Joins the Game',
+      child: GestureDetector(
+        key: const ValueKey('mia-story-card'),
+        onTap: onTap,
+        child: Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0D48347A),
+                blurRadius: 22,
+                offset: Offset(0, 10),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        children: [
-          SizedBox(
-            height: 146,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                const Image(
-                  image: AssetImage('assets/images/mia_joins_game.png'),
-                  fit: BoxFit.cover,
-                ),
-                const DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Colors.transparent, Color(0xB53A2D8E)],
-                      stops: [0.48, 1],
+          child: Column(
+            children: [
+              SizedBox(
+                height: 146,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    const Image(
+                      image: AssetImage('assets/images/mia_joins_game.png'),
+                      fit: BoxFit.cover,
                     ),
-                  ),
-                ),
-                Positioned(
-                  top: 12,
-                  left: 12,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircleAvatar(
-                          radius: 3,
-                          backgroundColor: Color(0xFFFF826B),
+                    const DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [Colors.transparent, Color(0xB53A2D8E)],
+                          stops: [0.48, 1],
                         ),
-                        SizedBox(width: 5),
+                      ),
+                    ),
+                    Positioned(
+                      top: 12,
+                      left: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircleAvatar(
+                              radius: 3,
+                              backgroundColor: Color(0xFFFF826B),
+                            ),
+                            SizedBox(width: 5),
+                            Text(
+                              'FRIENDS',
+                              style: TextStyle(
+                                color: Color(0xFF343746),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const Positioned(
+                      left: 13,
+                      right: 13,
+                      bottom: 12,
+                      child: Text(
+                        'Mia Joins the Game',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
                         Text(
-                          'FRIENDS',
-                          style: TextStyle(
-                            color: Color(0xFF343746),
-                            fontSize: 10,
+                          '$currentPage / $pageCount pages',
+                          style: const TextStyle(
+                            color: HomeScreen._muted,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          '${(progress * 100).round()}%',
+                          style: const TextStyle(
+                            color: HomeScreen._purple,
+                            fontSize: 13,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ),
-                const Positioned(
-                  left: 13,
-                  right: 13,
-                  bottom: 12,
-                  child: Text(
-                    'Mia Joins the Game',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(14, 14, 14, 12),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      '3 / 8 pages',
-                      style: TextStyle(
-                        color: HomeScreen._muted,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    Spacer(),
-                    Text(
-                      '38%',
-                      style: TextStyle(
-                        color: HomeScreen._purple,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
+                    const SizedBox(height: 10),
+                    ClipRRect(
+                      borderRadius: const BorderRadius.all(Radius.circular(8)),
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        minHeight: 5,
+                        backgroundColor: const Color(0xFFE9E3F8),
+                        valueColor: const AlwaysStoppedAnimation(
+                          HomeScreen._purple,
+                        ),
                       ),
                     ),
                   ],
                 ),
-                SizedBox(height: 10),
-                ClipRRect(
-                  borderRadius: BorderRadius.all(Radius.circular(8)),
-                  child: LinearProgressIndicator(
-                    value: 0.38,
-                    minHeight: 5,
-                    backgroundColor: Color(0xFFE9E3F8),
-                    valueColor: AlwaysStoppedAnimation(HomeScreen._purple),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
