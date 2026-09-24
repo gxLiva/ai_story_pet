@@ -64,6 +64,10 @@ flutter:
 
   assets:
     - assets/images/lumi_fox.png
+    - assets/images/lumie_celebrate_jump.png
+    - assets/images/lumie_celebrate_proud.png
+    - assets/images/lumie_celebrate_detective.png
+    - assets/images/lumie_celebrate_heart.png
     - assets/images/mia_joins_game.png
 
   # To add assets to your application, add an assets section, like this:

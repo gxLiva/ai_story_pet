@@ -31,6 +31,16 @@ class StoryReadingNotifier extends Notifier<StoryReadingState> {
     return check == null || state.completedFeelingCheckIds.contains(check.id);
   }
 
+  bool canNavigateToPage(Story story, int pageIndex) {
+    if (pageIndex < 0 || pageIndex >= story.pages.length) return false;
+    return story.pages.take(pageIndex).every(canLeavePage);
+  }
+
+  void goToPage(Story story, int pageIndex) {
+    if (!canNavigateToPage(story, pageIndex)) return;
+    state = state.copyWith(currentPageIndex: pageIndex);
+  }
+
   void previousPage() {
     if (state.currentPageIndex == 0) return;
     state = state.copyWith(currentPageIndex: state.currentPageIndex - 1);

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../models/story.dart';
 import '../../providers/story_providers.dart';
+import '../widgets/lumie_celebration_overlay.dart';
 
 class FeelingCheckScreen extends ConsumerStatefulWidget {
   const FeelingCheckScreen({
@@ -21,7 +22,38 @@ class FeelingCheckScreen extends ConsumerStatefulWidget {
 
 class _FeelingCheckScreenState extends ConsumerState<FeelingCheckScreen> {
   static const _purple = Color(0xFF7561E8);
+  static const _celebrations = [
+    LumieCelebration(
+      imagePath: 'assets/images/lumie_celebrate_jump.png',
+      message: 'You did it!',
+    ),
+    LumieCelebration(
+      imagePath: 'assets/images/lumie_celebrate_proud.png',
+      message: 'Wonderful thinking!',
+    ),
+    LumieCelebration(
+      imagePath: 'assets/images/lumie_celebrate_detective.png',
+      message: 'Great noticing!',
+    ),
+    LumieCelebration(
+      imagePath: 'assets/images/lumie_celebrate_heart.png',
+      message: 'You understood the feeling!',
+    ),
+  ];
   String? _feedback;
+
+  Future<void> _showCelebration() async {
+    await showLumieCelebrationOverlay(
+      context: context,
+      celebration: pickRandomCelebration(_celebrations),
+      dismissLabel: 'click anywhere to resume reading',
+      overlayKey: const ValueKey('feeling-check-success-overlay'),
+      imageKey: const ValueKey('feeling-check-success-image'),
+      messageKey: const ValueKey('feeling-check-success-message'),
+    );
+
+    if (mounted) context.pop();
+  }
 
   FeelingCheck? _findCheck(Story story) {
     for (final page in story.pages) {
@@ -179,10 +211,10 @@ class _FeelingCheckScreenState extends ConsumerState<FeelingCheckScreen> {
                 child: ElevatedButton(
                   key: const ValueKey('submit-feeling-check'),
                   onPressed: canSubmit
-                      ? () {
+                      ? () async {
                           final isCorrect = notifier.submitFeelingCheck(check);
                           if (isCorrect) {
-                            context.pop();
+                            await _showCelebration();
                           } else {
                             setState(() {
                               _feedback =

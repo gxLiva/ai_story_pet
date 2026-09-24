@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../app/app_router.dart';
 import '../../providers/story_providers.dart';
+import '../widgets/lumie_celebration_overlay.dart';
 
 class StoryScreen extends ConsumerWidget {
   const StoryScreen({super.key, required this.storyId});
@@ -13,6 +14,24 @@ class StoryScreen extends ConsumerWidget {
   static const _background = Color(0xFFF9F5FF);
   static const _purple = Color(0xFF7561E8);
   static const _ink = Color(0xFF171B2C);
+  static const _storyCelebrations = [
+    LumieCelebration(
+      imagePath: 'assets/images/lumie_celebrate_jump.png',
+      message: 'Amazing—you finished the whole story!',
+    ),
+    LumieCelebration(
+      imagePath: 'assets/images/lumie_celebrate_proud.png',
+      message: 'You read all the way to the end!',
+    ),
+    LumieCelebration(
+      imagePath: 'assets/images/lumie_celebrate_detective.png',
+      message: 'Great reading and great noticing!',
+    ),
+    LumieCelebration(
+      imagePath: 'assets/images/lumie_celebrate_heart.png',
+      message: 'Lumie loved reading with you!',
+    ),
+  ];
 
   void _close(BuildContext context) {
     if (context.canPop()) {
@@ -20,6 +39,19 @@ class StoryScreen extends ConsumerWidget {
     } else {
       context.go(AppRoutes.home);
     }
+  }
+
+  Future<void> _finishStory(BuildContext context) async {
+    await showLumieCelebrationOverlay(
+      context: context,
+      celebration: pickRandomCelebration(_storyCelebrations),
+      dismissLabel: 'click anywhere to return home',
+      overlayKey: const ValueKey('story-complete-overlay'),
+      imageKey: const ValueKey('story-complete-image'),
+      messageKey: const ValueKey('story-complete-message'),
+    );
+
+    if (context.mounted) context.go(AppRoutes.home);
   }
 
   @override
@@ -85,6 +117,21 @@ class StoryScreen extends ConsumerWidget {
             _StoryProgressIndicator(
               currentPageIndex: pageIndex,
               pageCount: story.pages.length,
+              canSelectPage: (index) =>
+                  readingNotifier.canNavigateToPage(story, index),
+              onPageSelected: (index) => readingNotifier.goToPage(story, index),
+              onLockedPageSelected: () {
+                ScaffoldMessenger.of(context)
+                  ..hideCurrentSnackBar()
+                  ..showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Complete the Feeling Check to unlock this page.',
+                      ),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+              },
             ),
             const SizedBox(height: 12),
             Expanded(
@@ -120,12 +167,15 @@ class StoryScreen extends ConsumerWidget {
                         focusPhrase: page.feelingCheck!.focusPhrase,
                         isCompleted: readingState.completedFeelingCheckIds
                             .contains(page.feelingCheck!.id),
-                        onTap: () => context.push(
-                          AppRoutes.feelingCheckPath(
-                            story.id,
-                            page.feelingCheck!.id,
-                          ),
-                        ),
+                        onTap: () {
+                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                          context.push(
+                            AppRoutes.feelingCheckPath(
+                              story.id,
+                              page.feelingCheck!.id,
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ],
@@ -142,6 +192,7 @@ class StoryScreen extends ConsumerWidget {
                     tooltip: 'Previous page',
                     icon: Icons.arrow_back_rounded,
                     roundedEdge: _RoundedEdge.left,
+                    isFinishAction: false,
                     onPressed: pageIndex == 0
                         ? null
                         : readingNotifier.previousPage,
@@ -150,12 +201,15 @@ class StoryScreen extends ConsumerWidget {
                   _PageNavigationButton(
                     key: const ValueKey('next-page-button'),
                     tooltip: isLastPage ? 'Finish story' : 'Next page',
-                    icon: Icons.arrow_forward_rounded,
+                    icon: isLastPage
+                        ? Icons.pets_rounded
+                        : Icons.arrow_forward_rounded,
                     roundedEdge: _RoundedEdge.right,
+                    isFinishAction: isLastPage,
                     onPressed: canGoNext
-                        ? () {
+                        ? () async {
                             if (isLastPage) {
-                              context.go(AppRoutes.home);
+                              await _finishStory(context);
                             } else {
                               readingNotifier.nextPage(story);
                             }
@@ -227,31 +281,62 @@ class _StoryProgressIndicator extends StatelessWidget {
   const _StoryProgressIndicator({
     required this.currentPageIndex,
     required this.pageCount,
+    required this.canSelectPage,
+    required this.onPageSelected,
+    required this.onLockedPageSelected,
   });
 
   final int currentPageIndex;
   final int pageCount;
+  final bool Function(int pageIndex) canSelectPage;
+  final ValueChanged<int> onPageSelected;
+  final VoidCallback onLockedPageSelected;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        for (var index = 0; index < pageCount; index++) ...[
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            width: index == currentPageIndex ? 24 : 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: index == currentPageIndex
-                  ? StoryScreen._purple
-                  : const Color(0xFFD9D0FF),
-              borderRadius: BorderRadius.circular(4),
+        for (var index = 0; index < pageCount; index++)
+          Semantics(
+            button: true,
+            selected: index == currentPageIndex,
+            label: canSelectPage(index)
+                ? 'Go to page ${index + 1} of $pageCount'
+                : 'Page ${index + 1} of $pageCount, locked',
+            child: Tooltip(
+              message: canSelectPage(index)
+                  ? 'Go to page ${index + 1}'
+                  : 'Complete the Feeling Check first',
+              child: InkResponse(
+                key: ValueKey('story-page-dot-$index'),
+                onTap: canSelectPage(index)
+                    ? () => onPageSelected(index)
+                    : onLockedPageSelected,
+                radius: 22,
+                containedInkWell: true,
+                highlightShape: BoxShape.circle,
+                child: SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: Center(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: index == currentPageIndex ? 24 : 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: index == currentPageIndex
+                            ? StoryScreen._purple
+                            : const Color(0xFFD9D0FF),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
-          if (index < pageCount - 1) const SizedBox(width: 6),
-        ],
-        const SizedBox(width: 16),
+        const SizedBox(width: 8),
         Text(
           '${currentPageIndex + 1} / $pageCount',
           key: const ValueKey('story-page-indicator'),
@@ -274,17 +359,21 @@ class _PageNavigationButton extends StatelessWidget {
     required this.tooltip,
     required this.icon,
     required this.roundedEdge,
+    required this.isFinishAction,
     required this.onPressed,
   });
 
   final String tooltip;
   final IconData icon;
   final _RoundedEdge roundedEdge;
+  final bool isFinishAction;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     const outerRadius = Radius.circular(27);
+    const finishForeground = Color(0xFF6B3E22);
+    const finishBackground = Color(0xFFF6D98C);
     final borderRadius = roundedEdge == _RoundedEdge.left
         ? const BorderRadius.only(topLeft: outerRadius, bottomLeft: outerRadius)
         : const BorderRadius.only(
@@ -301,16 +390,23 @@ class _PageNavigationButton extends StatelessWidget {
         icon: Icon(icon, size: 30),
         style: ButtonStyle(
           padding: const WidgetStatePropertyAll(EdgeInsets.zero),
-          foregroundColor: WidgetStateProperty.resolveWith(
-            (states) => states.contains(WidgetState.disabled)
-                ? StoryScreen._purple.withValues(alpha: 0.38)
-                : StoryScreen._purple,
-          ),
-          backgroundColor: WidgetStateProperty.resolveWith(
-            (states) => states.contains(WidgetState.disabled)
-                ? StoryScreen._purple.withValues(alpha: 0.12)
-                : StoryScreen._purple.withValues(alpha: 0.30),
-          ),
+          foregroundColor: WidgetStateProperty.resolveWith((states) {
+            final color = isFinishAction
+                ? finishForeground
+                : StoryScreen._purple;
+            return states.contains(WidgetState.disabled)
+                ? color.withValues(alpha: 0.38)
+                : color;
+          }),
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            final color = isFinishAction
+                ? finishBackground
+                : StoryScreen._purple;
+            if (states.contains(WidgetState.disabled)) {
+              return color.withValues(alpha: 0.35);
+            }
+            return isFinishAction ? color : color.withValues(alpha: 0.30);
+          }),
           overlayColor: WidgetStatePropertyAll(
             StoryScreen._purple.withValues(alpha: 0.10),
           ),
@@ -365,7 +461,10 @@ class _FeelingPrompt extends StatelessWidget {
                 color: Colors.white.withValues(alpha: 0.28),
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Text(title.substring(phraseStart, phraseEnd), style: style),
+              child: Text(
+                title.substring(phraseStart, phraseEnd),
+                style: style,
+              ),
             ),
           ),
           TextSpan(text: '${title.substring(phraseEnd)} 🤔'),

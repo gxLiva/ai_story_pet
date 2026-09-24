@@ -108,10 +108,18 @@ void main() {
       tester.getSize(find.byKey(const ValueKey('next-page-button'))),
     );
 
-    await tester.tap(find.byKey(const ValueKey('next-page-button')));
+    expect(
+      tester.getSize(find.byKey(const ValueKey('story-page-dot-1'))),
+      const Size(44, 44),
+    );
+    await tester.tap(find.byKey(const ValueKey('story-page-dot-1')));
     await tester.pump();
 
     expect(find.text('2 / 5'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('story-page-dot-0')));
+    await tester.pump();
+    expect(find.text('1 / 5'), findsOneWidget);
   });
 
   testWidgets('Feeling Check blocks progress until both answers are correct', (
@@ -144,6 +152,15 @@ void main() {
     expect(highlightedPhrase.text, 'wobbly');
     expect(highlightedPhrase.style!.decoration, TextDecoration.underline);
     expect(highlightedPhrase.style!.decorationColor, const Color(0xFFFFD59A));
+
+    await tester.tap(find.byKey(const ValueKey('story-page-dot-4')));
+    await tester.pump();
+    expect(find.text('3 / 5'), findsOneWidget);
+    expect(
+      find.text('Complete the Feeling Check to unlock this page.'),
+      findsOneWidget,
+    );
+
     final lockedNext = tester.widget<IconButton>(
       find.descendant(
         of: find.byKey(const ValueKey('next-page-button')),
@@ -195,12 +212,73 @@ void main() {
     await tester.tap(submit);
     await tester.pumpAndSettle();
 
+    expect(
+      find.byKey(const ValueKey('feeling-check-success-overlay')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('feeling-check-success-image')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('feeling-check-success-message')),
+      findsOneWidget,
+    );
+    expect(find.text('click anywhere to resume reading'), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(const ValueKey('feeling-check-success-overlay')),
+    );
+    await tester.pumpAndSettle();
+
     expect(find.text('3 / 5'), findsOneWidget);
     expect(find.text('Feeling Check complete!'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('next-page-button')));
     await tester.pump();
     expect(find.text('4 / 5'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('next-page-button')));
+    await tester.pump();
+    expect(find.text('5 / 5'), findsOneWidget);
+    expect(find.byIcon(Icons.arrow_forward_rounded), findsNothing);
+    expect(find.byIcon(Icons.pets_rounded), findsOneWidget);
+
+    final finishButton = tester.widget<IconButton>(
+      find.descendant(
+        of: find.byKey(const ValueKey('next-page-button')),
+        matching: find.byType(IconButton),
+      ),
+    );
+    expect(finishButton.tooltip, 'Finish story');
+    expect(
+      finishButton.style!.foregroundColor!.resolve({}),
+      const Color(0xFF6B3E22),
+    );
+    expect(
+      finishButton.style!.backgroundColor!.resolve({}),
+      const Color(0xFFF6D98C),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('next-page-button')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('story-complete-overlay')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('story-complete-image')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('story-complete-message')),
+      findsOneWidget,
+    );
+    expect(find.text('click anywhere to return home'), findsOneWidget);
+    expect(find.text('5 / 5'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('story-complete-overlay')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('mia-story-card')), findsOneWidget);
   });
 }
 
