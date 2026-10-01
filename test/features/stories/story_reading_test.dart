@@ -54,6 +54,21 @@ void main() {
 
     await pumpReadingApp(tester);
 
+    expect(find.text('Made just for you ✨'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('personalized-story-card')),
+      findsOneWidget,
+    );
+    expect(find.text('Create my story'), findsOneWidget);
+    expect(
+      tester
+          .widget<InkWell>(
+            find.byKey(const ValueKey('create-personalized-story-button')),
+          )
+          .onTap,
+      isNotNull,
+    );
+
     final storyCard = find.byKey(const ValueKey('mia-story-card'));
     await tester.ensureVisible(storyCard);
     await tester.tap(storyCard);

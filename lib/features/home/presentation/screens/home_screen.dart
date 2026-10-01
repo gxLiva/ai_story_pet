@@ -8,9 +8,14 @@ import '../../../stories/providers/story_providers.dart';
 import '../../../stories/repository/story_repository.dart';
 
 class HomeScreen extends ConsumerWidget {
-  const HomeScreen({super.key, this.onStartStory});
+  const HomeScreen({
+    super.key,
+    this.onStartStory,
+    this.onCreatePersonalizedStory,
+  });
 
   final VoidCallback? onStartStory;
+  final VoidCallback? onCreatePersonalizedStory;
 
   static const Color _background = Color(0xFFF9F5FF);
   static const Color _ink = Color(0xFF111626);
@@ -87,8 +92,151 @@ class HomeScreen extends ConsumerWidget {
                 progress: progress,
                 onTap: openMiaStory,
               ),
+              const SizedBox(height: 30),
+              const Text(
+                'Made just for you ✨',
+                style: TextStyle(
+                  color: _ink,
+                  fontSize: 21,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const SizedBox(height: 14),
+              _PersonalizedStoryCard(onTap: onCreatePersonalizedStory ?? () {}),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PersonalizedStoryCard extends StatelessWidget {
+  const _PersonalizedStoryCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(24),
+      clipBehavior: Clip.antiAlias,
+      child: Ink(
+        key: const ValueKey('personalized-story-card'),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFFFE6A8), Color(0xFFFFCDAE)],
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x1848347A),
+              blurRadius: 22,
+              offset: Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            const Positioned(
+              top: -34,
+              right: -24,
+              child: _DecorativeCircle(size: 118, color: Color(0x42FFFFFF)),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 16, 18),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Your next adventure',
+                          style: TextStyle(
+                            color: Color(0xFF4B2F28),
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 7),
+                        const Text(
+                          'A brand-new story inspired by what you love.',
+                          style: TextStyle(
+                            color: Color(0xFF77534A),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            height: 1.35,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Material(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(18),
+                          clipBehavior: Clip.antiAlias,
+                          child: InkWell(
+                            key: const ValueKey(
+                              'create-personalized-story-button',
+                            ),
+                            onTap: onTap,
+                            borderRadius: BorderRadius.circular(18),
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 9,
+                              ),
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.auto_awesome_rounded,
+                                      color: Color(0xFF7561E8),
+                                      size: 18,
+                                    ),
+                                    SizedBox(width: 7),
+                                    Text(
+                                      'Create my story',
+                                      style: TextStyle(
+                                        color: Color(0xFF5B4CDD),
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Container(
+                    width: 92,
+                    height: 118,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF8E9),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: const Image(
+                      image: AssetImage('assets/images/lumi_fox.png'),
+                      fit: BoxFit.cover,
+                      alignment: Alignment.topCenter,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
