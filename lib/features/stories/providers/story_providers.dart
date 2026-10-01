@@ -1,22 +1,85 @@
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../auth/providers/auth_providers.dart';
+import '../../profile/providers/user_profile_providers.dart';
 import '../models/story.dart';
+import '../repository/story_creation_service.dart';
 import '../repository/story_repository.dart';
 
 final storyRepositoryProvider = Provider<StoryRepository>((ref) {
-  return const StoryRepository();
+  return StoryRepository();
 });
 
-final storyProvider = Provider.family<Story?, String>((ref, storyId) {
-  return ref.watch(storyRepositoryProvider).getStory(storyId);
+final userStoryProvider = StreamProvider.family<Story?, String>((ref, storyId) {
+  final userId = ref.watch(currentUserProvider)?.uid;
+  if (userId == null) return Stream.value(null);
+
+  return StoryRepository(
+    userStoryDataSource: FirestoreUserStoryDataSource(
+      ref.watch(firestoreProvider),
+    ),
+  ).watchUserStory(userId: userId, storyId: storyId);
 });
+
+final storyProvider = Provider.family<AsyncValue<Story?>, String>((
+  ref,
+  storyId,
+) {
+  final localStory = ref.watch(storyRepositoryProvider).getLocalStory(storyId);
+  if (localStory != null) return AsyncData(localStory);
+  if (ref.watch(currentUserProvider) == null) {
+    return const AsyncData(null);
+  }
+  return ref.watch(userStoryProvider(storyId));
+});
+
+final firebaseFunctionsProvider = Provider<FirebaseFunctions>((ref) {
+  return FirebaseFunctions.instance;
+});
+
+final storyCreationServiceProvider = Provider<StoryCreationService>((ref) {
+  return FirebaseStoryCreationService(ref.watch(firebaseFunctionsProvider));
+});
+
+final personalizedStoryCreationProvider =
+    NotifierProvider<PersonalizedStoryCreationNotifier, StoryCreationState>(
+      PersonalizedStoryCreationNotifier.new,
+    );
+
+class StoryCreationState {
+  const StoryCreationState({this.isLoading = false, this.error});
+
+  final bool isLoading;
+  final Object? error;
+
+  bool get hasError => error != null;
+}
+
+class PersonalizedStoryCreationNotifier extends Notifier<StoryCreationState> {
+  @override
+  StoryCreationState build() => const StoryCreationState();
+
+  Future<void> create() async {
+    if (state.isLoading) return;
+    state = const StoryCreationState(isLoading: true);
+    try {
+      await ref.read(storyCreationServiceProvider).createSampleStory();
+      state = const StoryCreationState();
+    } catch (error) {
+      state = StoryCreationState(error: error);
+    }
+  }
+}
 
 final storyReadingProvider =
-    NotifierProvider<StoryReadingNotifier, StoryReadingState>(
+    NotifierProvider.family<StoryReadingNotifier, StoryReadingState, String>(
       StoryReadingNotifier.new,
     );
 
 class StoryReadingNotifier extends Notifier<StoryReadingState> {
+  StoryReadingNotifier(String _);
+
   @override
   StoryReadingState build() => const StoryReadingState();
 

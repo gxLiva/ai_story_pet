@@ -66,7 +66,11 @@ class _FeelingCheckScreenState extends ConsumerState<FeelingCheckScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final story = ref.watch(storyProvider(widget.storyId));
+    final storyState = ref.watch(storyProvider(widget.storyId));
+    if (storyState.isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    final story = storyState.asData?.value;
     final check = story == null ? null : _findCheck(story);
     if (check == null) {
       return Scaffold(
@@ -79,8 +83,8 @@ class _FeelingCheckScreenState extends ConsumerState<FeelingCheckScreen> {
       );
     }
 
-    final readingState = ref.watch(storyReadingProvider);
-    final notifier = ref.read(storyReadingProvider.notifier);
+    final readingState = ref.watch(storyReadingProvider(widget.storyId));
+    final notifier = ref.read(storyReadingProvider(widget.storyId).notifier);
     final canSubmit = notifier.hasAnsweredEveryQuestion(check);
 
     return Scaffold(

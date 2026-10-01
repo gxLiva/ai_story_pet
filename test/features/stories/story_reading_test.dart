@@ -1,18 +1,29 @@
+import 'dart:async';
+
 import 'package:ai_story_pet/features/auth/providers/auth_providers.dart';
 import 'package:ai_story_pet/features/home/presentation/screens/home_screen.dart';
 import 'package:ai_story_pet/features/navigation/presentation/widgets/app_bottom_navigation_bar.dart';
+import 'package:ai_story_pet/features/stories/models/story.dart';
 import 'package:ai_story_pet/features/stories/presentation/screens/feeling_check_screen.dart';
 import 'package:ai_story_pet/features/stories/presentation/screens/story_screen.dart';
+import 'package:ai_story_pet/features/stories/providers/story_providers.dart';
+import 'package:ai_story_pet/features/stories/repository/story_creation_service.dart';
 import 'package:ai_story_pet/features/stories/repository/story_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
+import 'test_story_fixture.dart';
+
 void main() {
   late GoRouter router;
 
-  Future<void> pumpReadingApp(WidgetTester tester) async {
+  Future<void> pumpReadingApp(
+    WidgetTester tester, {
+    Story? additionalStory,
+    StoryCreationService? creationService,
+  }) async {
     router = GoRouter(
       initialLocation: '/home',
       routes: [
@@ -37,12 +48,152 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [currentUserProvider.overrideWithValue(null)],
+        overrides: [
+          currentUserProvider.overrideWithValue(null),
+          if (additionalStory != null)
+            storyRepositoryProvider.overrideWithValue(
+              StoryRepository(additionalStories: [additionalStory]),
+            ),
+          if (creationService != null)
+            storyCreationServiceProvider.overrideWithValue(creationService),
+        ],
         child: MaterialApp.router(routerConfig: router),
       ),
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets('reader renders an arbitrary story fixture by id', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await pumpReadingApp(tester, additionalStory: buildTestStory());
+    router.go('/story/$testStoryId');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sam Looks at the Stars'), findsOneWidget);
+    expect(find.text('1 / 3'), findsOneWidget);
+    expect(
+      find.text('Sam carried a little telescope into the garden.'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('next-page-button')));
+    await tester.pump();
+
+    expect(find.text('2 / 3'), findsOneWidget);
+    expect(find.text('curious'), findsOneWidget);
+    expect(find.byKey(const ValueKey('feeling-check-prompt')), findsOneWidget);
+
+    final lockedNext = tester.widget<IconButton>(
+      find.descendant(
+        of: find.byKey(const ValueKey('next-page-button')),
+        matching: find.byType(IconButton),
+      ),
+    );
+    expect(lockedNext.onPressed, isNull);
+
+    await tester.tap(find.byKey(const ValueKey('feeling-check-prompt')));
+    await tester.pumpAndSettle();
+    final feelingAnswer = find.byKey(
+      const ValueKey('answer-sam-feeling-curious'),
+    );
+    await tester.ensureVisible(feelingAnswer);
+    await tester.tap(feelingAnswer);
+    final evidenceAnswer = find.byKey(
+      const ValueKey('answer-sam-evidence-looked-closer'),
+    );
+    await tester.ensureVisible(evidenceAnswer);
+    await tester.tap(evidenceAnswer);
+    await tester.pump();
+    final submit = find.byKey(const ValueKey('submit-feeling-check'));
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('feeling-check-success-overlay')),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('next-page-button')));
+    await tester.pump();
+    expect(find.text('3 / 3'), findsOneWidget);
+    expect(
+      find.text('Sam found the star and drew it in a notebook.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('unknown story id shows a friendly error', (tester) async {
+    await pumpReadingApp(tester);
+    router.go('/story/not-a-story');
+    await tester.pumpAndSettle();
+
+    expect(find.text('We could not find that story.'), findsOneWidget);
+    expect(find.text('Return home'), findsOneWidget);
+  });
+
+  testWidgets('saved personalized story replaces the creation card and opens', (
+    tester,
+  ) async {
+    final personalizedStory = Story.fromMap({
+      ...testStoryDocument,
+      'id': personalizedStoryId,
+      'title': 'My Saved Story',
+    });
+    await pumpReadingApp(tester, additionalStory: personalizedStory);
+
+    expect(
+      find.byKey(const ValueKey('personalized-story-preview')),
+      findsOneWidget,
+    );
+    expect(find.text('My Saved Story'), findsOneWidget);
+    expect(find.text('Create my story'), findsNothing);
+
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('personalized-story-preview')),
+    );
+    await tester.tap(find.byKey(const ValueKey('personalized-story-preview')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('My Saved Story'), findsOneWidget);
+    expect(find.text('1 / 3'), findsOneWidget);
+  });
+
+  testWidgets('creation card shows loading and a retryable error', (
+    tester,
+  ) async {
+    final creationService = _ControlledStoryCreationService();
+    await pumpReadingApp(tester, creationService: creationService);
+
+    final createButton = find.byKey(
+      const ValueKey('create-personalized-story-button'),
+    );
+    await tester.ensureVisible(createButton);
+    await tester.tap(createButton);
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey('personalized-story-loading')),
+      findsOneWidget,
+    );
+
+    creationService.completer.completeError(StateError('offline'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('personalized-story-error')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('retry-personalized-story-button')),
+      findsOneWidget,
+    );
+  });
 
   testWidgets('Mia card opens a focused reader and navigates pages', (
     tester,
@@ -299,4 +450,11 @@ void main() {
 
 String pathParameter(GoRouterState state, String name) {
   return state.pathParameters[name]!;
+}
+
+class _ControlledStoryCreationService implements StoryCreationService {
+  final completer = Completer<String>();
+
+  @override
+  Future<String> createSampleStory() => completer.future;
 }

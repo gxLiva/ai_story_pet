@@ -1,12 +1,71 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../models/story.dart';
 
 const miaStoryId = 'mia-joins-the-game';
+const personalizedStoryId = 'personalized';
+
+abstract interface class UserStoryDataSource {
+  Stream<Map<String, dynamic>?> watchStory({
+    required String userId,
+    required String storyId,
+  });
+}
+
+class FirestoreUserStoryDataSource implements UserStoryDataSource {
+  FirestoreUserStoryDataSource(this._firestore);
+
+  final FirebaseFirestore _firestore;
+
+  @override
+  Stream<Map<String, dynamic>?> watchStory({
+    required String userId,
+    required String storyId,
+  }) {
+    return _firestore
+        .collection('userProfiles')
+        .doc(userId)
+        .collection('stories')
+        .doc(storyId)
+        .snapshots()
+        .map((snapshot) => snapshot.data());
+  }
+}
 
 class StoryRepository {
-  const StoryRepository();
+  StoryRepository({
+    this.userStoryDataSource,
+    Iterable<Story> additionalStories = const [],
+  }) : _stories = {
+         miaStoryId: _miaStory,
+         for (final story in additionalStories) story.id: story,
+       };
 
-  Story? getStory(String storyId) {
-    return storyId == miaStoryId ? _miaStory : null;
+  final UserStoryDataSource? userStoryDataSource;
+  final Map<String, Story> _stories;
+
+  Story? getLocalStory(String storyId) {
+    return _stories[storyId];
+  }
+
+  Stream<Story?> watchUserStory({
+    required String userId,
+    required String storyId,
+  }) {
+    final dataSource = userStoryDataSource;
+    if (dataSource == null) {
+      return Stream.error(
+        StateError('A user story data source has not been configured.'),
+      );
+    }
+
+    return dataSource
+        .watchStory(userId: userId, storyId: storyId)
+        .map(
+          (document) => document == null
+              ? null
+              : Story.fromMap(document, documentId: storyId),
+        );
   }
 }
 

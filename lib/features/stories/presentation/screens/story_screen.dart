@@ -56,7 +56,33 @@ class StoryScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final story = ref.watch(storyProvider(storyId));
+    final storyState = ref.watch(storyProvider(storyId));
+    if (storyState.isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (storyState.hasError) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('We could not load that story.'),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => ref.invalidate(userStoryProvider(storyId)),
+                child: const Text('Try again'),
+              ),
+              TextButton(
+                onPressed: () => _close(context),
+                child: const Text('Return home'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final story = storyState.asData?.value;
     if (story == null) {
       return Scaffold(
         body: Center(
@@ -75,13 +101,13 @@ class StoryScreen extends ConsumerWidget {
       );
     }
 
-    final readingState = ref.watch(storyReadingProvider);
+    final readingState = ref.watch(storyReadingProvider(storyId));
     final pageIndex = readingState.currentPageIndex.clamp(
       0,
       story.pages.length - 1,
     );
     final page = story.pages[pageIndex];
-    final readingNotifier = ref.read(storyReadingProvider.notifier);
+    final readingNotifier = ref.read(storyReadingProvider(storyId).notifier);
     final canGoNext = readingNotifier.canLeavePage(page);
     final isLastPage = pageIndex == story.pages.length - 1;
 

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../app/app_router.dart';
 import '../../../auth/providers/auth_providers.dart';
+import '../../../stories/models/story.dart';
 import '../../../stories/providers/story_providers.dart';
 import '../../../stories/repository/story_repository.dart';
 
@@ -24,8 +25,12 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final story = ref.watch(storyProvider(miaStoryId));
-    final readingState = ref.watch(storyReadingProvider);
+    final story = ref.watch(storyProvider(miaStoryId)).asData?.value;
+    final readingState = ref.watch(storyReadingProvider(miaStoryId));
+    final personalizedStoryState = ref.watch(
+      storyProvider(personalizedStoryId),
+    );
+    final creationState = ref.watch(personalizedStoryCreationProvider);
     final pageCount = story?.pages.length ?? 1;
     final currentPage =
         readingState.currentPageIndex.clamp(0, pageCount - 1) + 1;
@@ -37,6 +42,36 @@ class HomeScreen extends ConsumerWidget {
       } else {
         context.push(AppRoutes.storyPath(miaStoryId));
       }
+    }
+
+    void createPersonalizedStory() {
+      if (onCreatePersonalizedStory != null) {
+        onCreatePersonalizedStory!();
+      } else {
+        ref.read(personalizedStoryCreationProvider.notifier).create();
+      }
+    }
+
+    Widget personalizedStoryCard() {
+      final personalizedStory = personalizedStoryState.asData?.value;
+      if (personalizedStory != null) {
+        return _PersonalizedStoryPreviewCard(
+          story: personalizedStory,
+          onTap: () => context.push(AppRoutes.storyPath(personalizedStory.id)),
+        );
+      }
+      if (personalizedStoryState.isLoading || creationState.isLoading) {
+        return const _PersonalizedStoryLoadingCard();
+      }
+      if (personalizedStoryState.hasError) {
+        return _PersonalizedStoryErrorCard(
+          onRetry: () => ref.invalidate(userStoryProvider(personalizedStoryId)),
+        );
+      }
+      if (creationState.hasError) {
+        return _PersonalizedStoryErrorCard(onRetry: createPersonalizedStory);
+      }
+      return _PersonalizedStoryCard(onTap: createPersonalizedStory);
     }
 
     return ColoredBox(
@@ -103,10 +138,165 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 14),
-              _PersonalizedStoryCard(onTap: onCreatePersonalizedStory ?? () {}),
+              personalizedStoryCard(),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _PersonalizedStoryPreviewCard extends StatelessWidget {
+  const _PersonalizedStoryPreviewCard({
+    required this.story,
+    required this.onTap,
+  });
+
+  final Story story;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(24),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        key: const ValueKey('personalized-story-preview'),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: Image.asset(
+                  story.coverImagePath,
+                  width: 92,
+                  height: 112,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      story.category.toUpperCase(),
+                      style: const TextStyle(
+                        color: HomeScreen._purple,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.7,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      story.title,
+                      style: const TextStyle(
+                        color: HomeScreen._ink,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    const Row(
+                      children: [
+                        Text(
+                          'Read my story',
+                          style: TextStyle(
+                            color: HomeScreen._purple,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        SizedBox(width: 5),
+                        Icon(
+                          Icons.arrow_forward_rounded,
+                          color: HomeScreen._purple,
+                          size: 18,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PersonalizedStoryLoadingCard extends StatelessWidget {
+  const _PersonalizedStoryLoadingCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const ValueKey('personalized-story-loading'),
+      height: 150,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: const Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 32,
+            height: 32,
+            child: CircularProgressIndicator(color: HomeScreen._purple),
+          ),
+          SizedBox(height: 14),
+          Text(
+            'Creating your story…',
+            style: TextStyle(
+              color: HomeScreen._ink,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PersonalizedStoryErrorCard extends StatelessWidget {
+  const _PersonalizedStoryErrorCard({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const ValueKey('personalized-story-error'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        children: [
+          const Text(
+            'We could not create your story. Please try again.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: HomeScreen._ink,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          FilledButton(
+            key: const ValueKey('retry-personalized-story-button'),
+            onPressed: onRetry,
+            child: const Text('Try again'),
+          ),
+        ],
       ),
     );
   }
