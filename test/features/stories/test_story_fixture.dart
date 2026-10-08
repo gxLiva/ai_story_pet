@@ -4,6 +4,7 @@ const testStoryId = 'sam-stargazing';
 
 final testStoryDocument = <String, dynamic>{
   'id': testStoryId,
+  'formatVersion': 2,
   'title': 'Sam Looks at the Stars',
   'category': 'Curiosity',
   'coverImagePath': 'assets/images/lumi_fox.png',
@@ -52,6 +53,16 @@ final testStoryDocument = <String, dynamic>{
       'id': 'sam-page-3',
       'imagePath': 'assets/images/lumi_fox.png',
       'text': 'Sam found the star and drew it in a notebook.',
+    },
+    {
+      'id': 'sam-page-4',
+      'imagePath': 'assets/images/lumi_fox.png',
+      'text': 'Sam compared the bright star with a picture in a book.',
+    },
+    {
+      'id': 'sam-page-5',
+      'imagePath': 'assets/images/lumi_fox.png',
+      'text': 'Sam smiled and planned another night of stargazing.',
     },
   ],
 };

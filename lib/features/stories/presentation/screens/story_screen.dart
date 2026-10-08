@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/app_router.dart';
 import '../../providers/story_providers.dart';
 import '../widgets/lumie_celebration_overlay.dart';
+import '../widgets/story_image.dart';
 
 class StoryScreen extends ConsumerWidget {
   const StoryScreen({super.key, required this.storyId});
@@ -169,7 +170,10 @@ class StoryScreen extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(28),
                       child: AspectRatio(
                         aspectRatio: 1.15,
-                        child: Image.asset(page.imagePath, fit: BoxFit.cover),
+                        child: StoryImage(
+                          path: page.imagePath,
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -320,59 +324,71 @@ class _StoryProgressIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (var index = 0; index < pageCount; index++)
-          Semantics(
-            button: true,
-            selected: index == currentPageIndex,
-            label: canSelectPage(index)
-                ? 'Go to page ${index + 1} of $pageCount'
-                : 'Page ${index + 1} of $pageCount, locked',
-            child: Tooltip(
-              message: canSelectPage(index)
-                  ? 'Go to page ${index + 1}'
-                  : 'Complete the Feeling Check first',
-              child: InkResponse(
-                key: ValueKey('story-page-dot-$index'),
-                onTap: canSelectPage(index)
-                    ? () => onPageSelected(index)
-                    : onLockedPageSelected,
-                radius: 22,
-                containedInkWell: true,
-                highlightShape: BoxShape.circle,
-                child: SizedBox(
-                  width: 44,
-                  height: 44,
-                  child: Center(
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: index == currentPageIndex ? 24 : 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: index == currentPageIndex
-                            ? StoryScreen._purple
-                            : const Color(0xFFD9D0FF),
-                        borderRadius: BorderRadius.circular(4),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (var index = 0; index < pageCount; index++)
+                  Semantics(
+                    button: true,
+                    selected: index == currentPageIndex,
+                    label: canSelectPage(index)
+                        ? 'Go to page ${index + 1} of $pageCount'
+                        : 'Page ${index + 1} of $pageCount, locked',
+                    child: Tooltip(
+                      message: canSelectPage(index)
+                          ? 'Go to page ${index + 1}'
+                          : 'Complete the Feeling Check first',
+                      child: InkResponse(
+                        key: ValueKey('story-page-dot-$index'),
+                        onTap: canSelectPage(index)
+                            ? () => onPageSelected(index)
+                            : onLockedPageSelected,
+                        radius: 22,
+                        containedInkWell: true,
+                        highlightShape: BoxShape.circle,
+                        child: SizedBox(
+                          width: 44,
+                          height: 44,
+                          child: Center(
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              width: index == currentPageIndex ? 24 : 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: index == currentPageIndex
+                                    ? StoryScreen._purple
+                                    : const Color(0xFFD9D0FF),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
+                const SizedBox(width: 8),
+                Text(
+                  '${currentPageIndex + 1} / $pageCount',
+                  key: const ValueKey('story-page-indicator'),
+                  style: const TextStyle(
+                    color: Color(0xFF9D96B0),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
+                const SizedBox(width: 12),
+              ],
             ),
           ),
-        const SizedBox(width: 8),
-        Text(
-          '${currentPageIndex + 1} / $pageCount',
-          key: const ValueKey('story-page-indicator'),
-          style: const TextStyle(
-            color: Color(0xFF9D96B0),
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 }

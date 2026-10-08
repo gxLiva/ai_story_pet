@@ -1,4 +1,5 @@
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../auth/providers/auth_providers.dart';
@@ -20,6 +21,35 @@ final userStoryProvider = StreamProvider.family<Story?, String>((ref, storyId) {
       ref.watch(firestoreProvider),
     ),
   ).watchUserStory(userId: userId, storyId: storyId);
+});
+
+final latestPersonalizedStoryIdProvider = StreamProvider<String?>((ref) {
+  final userId = ref.watch(currentUserProvider)?.uid;
+  if (userId == null) return Stream.value(null);
+
+  return ref
+      .watch(firestoreProvider)
+      .collection('userProfiles')
+      .doc(userId)
+      .snapshots()
+      .map((snapshot) {
+        final value = snapshot.data()?['latestStoryId'];
+        return value is String && value.trim().isNotEmpty ? value.trim() : null;
+      });
+});
+
+final latestPersonalizedStoryProvider = Provider<AsyncValue<Story?>>((ref) {
+  if (ref.watch(currentUserProvider) == null) {
+    return ref.watch(storyProvider(personalizedStoryId));
+  }
+
+  final latestId = ref.watch(latestPersonalizedStoryIdProvider);
+  if (latestId.isLoading) return const AsyncLoading();
+  if (latestId.hasError) {
+    return AsyncError(latestId.error!, latestId.stackTrace!);
+  }
+  final storyId = latestId.asData?.value;
+  return ref.watch(storyProvider(storyId ?? personalizedStoryId));
 });
 
 final storyProvider = Provider.family<AsyncValue<Story?>, String>((
@@ -61,12 +91,22 @@ class PersonalizedStoryCreationNotifier extends Notifier<StoryCreationState> {
   StoryCreationState build() => const StoryCreationState();
 
   Future<void> create() async {
-    if (state.isLoading) return;
+    if (state.isLoading) {
+      debugPrint('[StoryGeneration] Ignored duplicate create request');
+      return;
+    }
+    debugPrint('[StoryGeneration] Creation state: loading');
     state = const StoryCreationState(isLoading: true);
     try {
-      await ref.read(storyCreationServiceProvider).createSampleStory();
+      await ref.read(storyCreationServiceProvider).createPersonalizedStory();
+      debugPrint('[StoryGeneration] Creation state: success');
       state = const StoryCreationState();
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('[StoryGeneration] Creation state: error=$error');
+      debugPrintStack(
+        label: '[StoryGeneration] Provider stack trace',
+        stackTrace: stackTrace,
+      );
       state = StoryCreationState(error: error);
     }
   }

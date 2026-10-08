@@ -5,6 +5,11 @@ class Story {
     required this.category,
     required this.coverImagePath,
     required this.pages,
+    this.description = '',
+    this.readingTimeMinutes = 0,
+    this.formatVersion = 1,
+    this.mainCharacterName = '',
+    this.mainCharacterDescription = '',
   });
 
   final String id;
@@ -12,6 +17,11 @@ class Story {
   final String category;
   final String coverImagePath;
   final List<StoryPage> pages;
+  final String description;
+  final int readingTimeMinutes;
+  final int formatVersion;
+  final String mainCharacterName;
+  final String mainCharacterDescription;
 
   factory Story.fromMap(Map<String, dynamic> map, {String? documentId}) {
     final storyId = map['id'] == null
@@ -22,10 +32,24 @@ class Story {
     }
 
     final pages = _mapList(map, 'pages', 'story', StoryPage.fromMap);
-    if (pages.isEmpty) {
-      throw const FormatException('Story pages must not be empty.');
+    if (pages.length < 5 || pages.length > 10) {
+      throw const FormatException('A story must contain 5 to 10 pages.');
     }
     _requireUniqueIds(pages.map((page) => page.id), 'story pages');
+    final checks = pages
+        .map((page) => page.feelingCheck)
+        .whereType<FeelingCheck>()
+        .toList(growable: false);
+    final rawFormatVersion = map['formatVersion'];
+    final formatVersion = rawFormatVersion is int && rawFormatVersion > 0
+        ? rawFormatVersion
+        : 1;
+    if (formatVersion >= 2 && (checks.isEmpty || checks.length > 2)) {
+      throw const FormatException(
+        'A story must contain 1 or 2 feeling checks.',
+      );
+    }
+    _requireUniqueIds(checks.map((check) => check.id), 'feeling checks');
 
     return Story(
       id: storyId,
@@ -33,6 +57,14 @@ class Story {
       category: _requiredString(map, 'category', 'story'),
       coverImagePath: _requiredString(map, 'coverImagePath', 'story'),
       pages: List.unmodifiable(pages),
+      description: _optionalString(map, 'description'),
+      readingTimeMinutes: _optionalPositiveInt(map, 'readingTimeMinutes'),
+      formatVersion: formatVersion,
+      mainCharacterName: _optionalString(map, 'mainCharacterName'),
+      mainCharacterDescription: _optionalString(
+        map,
+        'mainCharacterDescription',
+      ),
     );
   }
 
@@ -42,7 +74,23 @@ class Story {
     'category': category,
     'coverImagePath': coverImagePath,
     'pages': pages.map((page) => page.toMap()).toList(growable: false),
+    if (description.isNotEmpty) 'description': description,
+    if (readingTimeMinutes > 0) 'readingTimeMinutes': readingTimeMinutes,
+    if (formatVersion > 1) 'formatVersion': formatVersion,
+    if (mainCharacterName.isNotEmpty) 'mainCharacterName': mainCharacterName,
+    if (mainCharacterDescription.isNotEmpty)
+      'mainCharacterDescription': mainCharacterDescription,
   };
+}
+
+String _optionalString(Map<String, dynamic> map, String key) {
+  final value = map[key];
+  return value is String ? value.trim() : '';
+}
+
+int _optionalPositiveInt(Map<String, dynamic> map, String key) {
+  final value = map[key];
+  return value is int && value > 0 ? value : 0;
 }
 
 class StoryPage {
@@ -109,8 +157,10 @@ class FeelingCheck {
       'feeling check',
       FeelingQuestion.fromMap,
     );
-    if (questions.isEmpty) {
-      throw const FormatException('Feeling check questions must not be empty.');
+    if (questions.length != 2) {
+      throw const FormatException(
+        'A feeling check must contain exactly two questions.',
+      );
     }
     _requireUniqueIds(questions.map((question) => question.id), 'questions');
 

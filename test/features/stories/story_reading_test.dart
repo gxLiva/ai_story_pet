@@ -76,7 +76,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Sam Looks at the Stars'), findsOneWidget);
-    expect(find.text('1 / 3'), findsOneWidget);
+    expect(find.text('1 / 5'), findsOneWidget);
     expect(
       find.text('Sam carried a little telescope into the garden.'),
       findsOneWidget,
@@ -85,7 +85,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('next-page-button')));
     await tester.pump();
 
-    expect(find.text('2 / 3'), findsOneWidget);
+    expect(find.text('2 / 5'), findsOneWidget);
     expect(find.text('curious'), findsOneWidget);
     expect(find.byKey(const ValueKey('feeling-check-prompt')), findsOneWidget);
 
@@ -121,7 +121,7 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('next-page-button')));
     await tester.pump();
-    expect(find.text('3 / 3'), findsOneWidget);
+    expect(find.text('3 / 5'), findsOneWidget);
     expect(
       find.text('Sam found the star and drew it in a notebook.'),
       findsOneWidget,
@@ -137,7 +137,37 @@ void main() {
     expect(find.text('Return home'), findsOneWidget);
   });
 
-  testWidgets('saved personalized story replaces the creation card and opens', (
+  testWidgets('ten-page stories render a scrollable progress indicator', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final longStory = Story.fromMap({
+      ...testStoryDocument,
+      'id': 'long-story',
+      'pages': [
+        ...(testStoryDocument['pages']! as List<dynamic>),
+        for (var index = 6; index <= 10; index++)
+          {
+            'id': 'long-page-$index',
+            'imagePath': 'assets/images/lumi_fox.png',
+            'text': 'This is page $index of the longer adventure.',
+          },
+      ],
+    });
+    await pumpReadingApp(tester, additionalStory: longStory);
+    router.go('/story/long-story');
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('story-page-dot-9')), findsOneWidget);
+    expect(find.byType(SingleChildScrollView), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('saved personalized story keeps the creation button and opens', (
     tester,
   ) async {
     final personalizedStory = Story.fromMap({
@@ -152,7 +182,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('My Saved Story'), findsOneWidget);
-    expect(find.text('Create my story'), findsNothing);
+    expect(find.text('Create a new story'), findsOneWidget);
 
     await tester.ensureVisible(
       find.byKey(const ValueKey('personalized-story-preview')),
@@ -161,7 +191,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('My Saved Story'), findsOneWidget);
-    expect(find.text('1 / 3'), findsOneWidget);
+    expect(find.text('1 / 5'), findsOneWidget);
   });
 
   testWidgets('creation card shows loading and a retryable error', (
@@ -210,7 +240,7 @@ void main() {
       find.byKey(const ValueKey('personalized-story-card')),
       findsOneWidget,
     );
-    expect(find.text('Create my story'), findsOneWidget);
+    expect(find.text('Create a new story'), findsOneWidget);
     expect(
       tester
           .widget<InkWell>(
@@ -456,5 +486,5 @@ class _ControlledStoryCreationService implements StoryCreationService {
   final completer = Completer<String>();
 
   @override
-  Future<String> createSampleStory() => completer.future;
+  Future<String> createPersonalizedStory() => completer.future;
 }

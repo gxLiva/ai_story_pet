@@ -7,6 +7,7 @@ import '../../../auth/providers/auth_providers.dart';
 import '../../../stories/models/story.dart';
 import '../../../stories/providers/story_providers.dart';
 import '../../../stories/repository/story_repository.dart';
+import '../../../stories/presentation/widgets/story_image.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({
@@ -27,9 +28,7 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final story = ref.watch(storyProvider(miaStoryId)).asData?.value;
     final readingState = ref.watch(storyReadingProvider(miaStoryId));
-    final personalizedStoryState = ref.watch(
-      storyProvider(personalizedStoryId),
-    );
+    final personalizedStoryState = ref.watch(latestPersonalizedStoryProvider);
     final creationState = ref.watch(personalizedStoryCreationProvider);
     final pageCount = story?.pages.length ?? 1;
     final currentPage =
@@ -52,26 +51,53 @@ class HomeScreen extends ConsumerWidget {
       }
     }
 
-    Widget personalizedStoryCard() {
+    void retryLatestStory() {
+      ref.invalidate(latestPersonalizedStoryIdProvider);
+      ref.invalidate(latestPersonalizedStoryProvider);
+    }
+
+    Widget personalizedStorySection() {
       final personalizedStory = personalizedStoryState.asData?.value;
-      if (personalizedStory != null) {
-        return _PersonalizedStoryPreviewCard(
-          story: personalizedStory,
-          onTap: () => context.push(AppRoutes.storyPath(personalizedStory.id)),
-        );
-      }
-      if (personalizedStoryState.isLoading || creationState.isLoading) {
-        return const _PersonalizedStoryLoadingCard();
-      }
-      if (personalizedStoryState.hasError) {
-        return _PersonalizedStoryErrorCard(
-          onRetry: () => ref.invalidate(userStoryProvider(personalizedStoryId)),
-        );
-      }
-      if (creationState.hasError) {
-        return _PersonalizedStoryErrorCard(onRetry: createPersonalizedStory);
-      }
-      return _PersonalizedStoryCard(onTap: createPersonalizedStory);
+      return Column(
+        children: [
+          _PersonalizedStoryCard(
+            onTap: creationState.isLoading ? null : createPersonalizedStory,
+            isLoading: creationState.isLoading,
+          ),
+          if (creationState.isLoading) ...[
+            const SizedBox(height: 12),
+            const _PersonalizedStoryLoadingCard(),
+          ],
+          if (creationState.hasError) ...[
+            const SizedBox(height: 12),
+            _PersonalizedStoryErrorCard(onRetry: createPersonalizedStory),
+          ],
+          if (personalizedStoryState.isLoading && !creationState.isLoading) ...[
+            const SizedBox(height: 12),
+            const _PersonalizedStoryLoadingCard(
+              message: 'Finding your latest story…',
+            ),
+          ],
+          if (personalizedStoryState.hasError) ...[
+            const SizedBox(height: 12),
+            _PersonalizedStoryErrorCard(
+              message: 'We could not load your latest story.',
+              onRetry: retryLatestStory,
+            ),
+          ],
+          if (personalizedStory != null) ...[
+            const SizedBox(height: 12),
+            Opacity(
+              opacity: creationState.isLoading ? 0.55 : 1,
+              child: _PersonalizedStoryPreviewCard(
+                story: personalizedStory,
+                onTap: () =>
+                    context.push(AppRoutes.storyPath(personalizedStory.id)),
+              ),
+            ),
+          ],
+        ],
+      );
     }
 
     return ColoredBox(
@@ -138,7 +164,7 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 14),
-              personalizedStoryCard(),
+              personalizedStorySection(),
             ],
           ),
         ),
@@ -158,6 +184,12 @@ class _PersonalizedStoryPreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final description = story.description.isNotEmpty
+        ? story.description
+        : story.pages.first.text;
+    final readingTime = story.readingTimeMinutes > 0
+        ? story.readingTimeMinutes
+        : 1;
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(24),
@@ -171,8 +203,8 @@ class _PersonalizedStoryPreviewCard extends StatelessWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(18),
-                child: Image.asset(
-                  story.coverImagePath,
+                child: StoryImage(
+                  path: story.coverImagePath,
                   width: 92,
                   height: 112,
                   fit: BoxFit.cover,
@@ -199,6 +231,27 @@ class _PersonalizedStoryPreviewCard extends StatelessWidget {
                         color: HomeScreen._ink,
                         fontSize: 20,
                         fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: HomeScreen._muted,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 9),
+                    Text(
+                      '${story.pages.length} pages • $readingTime min read',
+                      style: const TextStyle(
+                        color: HomeScreen._muted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -231,7 +284,9 @@ class _PersonalizedStoryPreviewCard extends StatelessWidget {
 }
 
 class _PersonalizedStoryLoadingCard extends StatelessWidget {
-  const _PersonalizedStoryLoadingCard();
+  const _PersonalizedStoryLoadingCard({this.message = 'Creating your story…'});
+
+  final String message;
 
   @override
   Widget build(BuildContext context) {
@@ -243,18 +298,18 @@ class _PersonalizedStoryLoadingCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
       ),
-      child: const Column(
+      child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(
+          const SizedBox(
             width: 32,
             height: 32,
             child: CircularProgressIndicator(color: HomeScreen._purple),
           ),
-          SizedBox(height: 14),
+          const SizedBox(height: 14),
           Text(
-            'Creating your story…',
-            style: TextStyle(
+            message,
+            style: const TextStyle(
               color: HomeScreen._ink,
               fontWeight: FontWeight.w800,
             ),
@@ -266,8 +321,12 @@ class _PersonalizedStoryLoadingCard extends StatelessWidget {
 }
 
 class _PersonalizedStoryErrorCard extends StatelessWidget {
-  const _PersonalizedStoryErrorCard({required this.onRetry});
+  const _PersonalizedStoryErrorCard({
+    this.message = 'We could not create your story. Please try again.',
+    required this.onRetry,
+  });
 
+  final String message;
   final VoidCallback onRetry;
 
   @override
@@ -282,10 +341,10 @@ class _PersonalizedStoryErrorCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const Text(
-            'We could not create your story. Please try again.',
+          Text(
+            message,
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               color: HomeScreen._ink,
               fontWeight: FontWeight.w700,
             ),
@@ -303,9 +362,10 @@ class _PersonalizedStoryErrorCard extends StatelessWidget {
 }
 
 class _PersonalizedStoryCard extends StatelessWidget {
-  const _PersonalizedStoryCard({required this.onTap});
+  const _PersonalizedStoryCard({required this.onTap, required this.isLoading});
 
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -374,8 +434,8 @@ class _PersonalizedStoryCard extends StatelessWidget {
                             ),
                             onTap: onTap,
                             borderRadius: BorderRadius.circular(18),
-                            child: const Padding(
-                              padding: EdgeInsets.symmetric(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
                                 horizontal: 14,
                                 vertical: 9,
                               ),
@@ -385,15 +445,27 @@ class _PersonalizedStoryCard extends StatelessWidget {
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(
-                                      Icons.auto_awesome_rounded,
-                                      color: Color(0xFF7561E8),
-                                      size: 18,
-                                    ),
-                                    SizedBox(width: 7),
+                                    if (isLoading)
+                                      const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Color(0xFF7561E8),
+                                        ),
+                                      )
+                                    else
+                                      const Icon(
+                                        Icons.auto_awesome_rounded,
+                                        color: Color(0xFF7561E8),
+                                        size: 18,
+                                      ),
+                                    const SizedBox(width: 7),
                                     Text(
-                                      'Create my story',
-                                      style: TextStyle(
+                                      isLoading
+                                          ? 'Creating my story…'
+                                          : 'Create a new story',
+                                      style: const TextStyle(
                                         color: Color(0xFF5B4CDD),
                                         fontSize: 14,
                                         fontWeight: FontWeight.w800,

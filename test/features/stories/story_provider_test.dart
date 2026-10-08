@@ -66,7 +66,7 @@ void main() {
           .selectedAnswers['sam-feeling'],
       'curious',
     );
-    expect(fixture.pages, hasLength(3));
+    expect(fixture.pages, hasLength(5));
   });
 
   test('story creation notifier reports success', () async {
@@ -120,7 +120,7 @@ class _FakeStoryCreationService implements StoryCreationService {
   int callCount = 0;
 
   @override
-  Future<String> createSampleStory() async {
+  Future<String> createPersonalizedStory() async {
     callCount++;
     if (error case final error?) throw error;
     return personalizedStoryId;
