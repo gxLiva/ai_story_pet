@@ -8,6 +8,7 @@ const logger = require("firebase-functions/logger");
 
 const {
   createPersonalizedStoryForUser,
+  ensureSharedThemeStories,
 } = require("./story");
 
 initializeApp();
@@ -68,5 +69,36 @@ exports.createPersonalizedStory = onCall({
       );
     }
     throw error;
+  }
+});
+
+exports.ensureSharedThemeStories = onCall({
+  secrets: [openaiApiKey],
+  timeoutSeconds: 540,
+}, async (request) => {
+  if (!request.auth && process.env.FUNCTIONS_EMULATOR !== "true") {
+    throw new HttpsError(
+        "unauthenticated",
+        "You must be signed in to load shared stories.",
+    );
+  }
+
+  try {
+    const results = await ensureSharedThemeStories({
+      firestore: getFirestore(),
+      storageBucket: getStorage().bucket(),
+    });
+    logger.info("Shared theme stories are ready", {results});
+    return {results};
+  } catch (error) {
+    logger.error("Shared theme story generation failed", {
+      code: error?.code,
+      message: error?.message,
+      stack: error?.stack,
+    });
+    throw new HttpsError(
+        "internal",
+        "The shared stories could not be prepared. Please try again.",
+    );
   }
 });

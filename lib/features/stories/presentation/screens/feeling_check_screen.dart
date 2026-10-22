@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../auth/providers/auth_providers.dart';
 import '../../models/story.dart';
 import '../../providers/story_providers.dart';
 import '../widgets/lumie_celebration_overlay.dart';
@@ -83,9 +84,25 @@ class _FeelingCheckScreenState extends ConsumerState<FeelingCheckScreen> {
       );
     }
 
-    final readingState = ref.watch(storyReadingProvider(widget.storyId));
-    final notifier = ref.read(storyReadingProvider(widget.storyId).notifier);
+    final readingKey = ref.watch(storyReadingKeyProvider(widget.storyId));
+    final readingState = ref.watch(storyReadingProvider(readingKey));
+    final notifier = ref.read(storyReadingProvider(readingKey).notifier);
     final canSubmit = notifier.hasAnsweredEveryQuestion(check);
+
+    void saveProgress() {
+      final userId = ref.read(currentUserProvider)?.uid;
+      if (userId == null) return;
+      ref
+          .read(storyActivityRepositoryProvider)
+          .saveProgress(
+            userId: userId,
+            storyId: widget.storyId,
+            state: ref.read(storyReadingProvider(readingKey)),
+          )
+          .catchError((Object error) {
+            debugPrint('[StoryProgress] Could not save check progress: $error');
+          });
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F3FF),
@@ -195,6 +212,7 @@ class _FeelingCheckScreenState extends ConsumerState<FeelingCheckScreen> {
                             option.id,
                         onTap: () {
                           notifier.selectAnswer(question.id, option.id);
+                          saveProgress();
                           setState(() => _feedback = null);
                         },
                       ),
@@ -217,6 +235,7 @@ class _FeelingCheckScreenState extends ConsumerState<FeelingCheckScreen> {
                   onPressed: canSubmit
                       ? () async {
                           final isCorrect = notifier.submitFeelingCheck(check);
+                          saveProgress();
                           if (isCorrect) {
                             await _showCelebration();
                           } else {

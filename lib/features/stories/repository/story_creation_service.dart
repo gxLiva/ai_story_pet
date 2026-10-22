@@ -5,6 +5,10 @@ abstract interface class StoryCreationService {
   Future<String> createPersonalizedStory();
 }
 
+abstract interface class SharedThemeStoryService {
+  Future<void> ensureStoriesExist();
+}
+
 class FirebaseStoryCreationService implements StoryCreationService {
   FirebaseStoryCreationService(this._functions);
 
@@ -58,5 +62,21 @@ class FirebaseStoryCreationService implements StoryCreationService {
       );
       rethrow;
     }
+  }
+}
+
+class FirebaseSharedThemeStoryService implements SharedThemeStoryService {
+  FirebaseSharedThemeStoryService(this._functions);
+
+  final FirebaseFunctions _functions;
+
+  @override
+  Future<void> ensureStoriesExist() async {
+    await _functions
+        .httpsCallable(
+          'ensureSharedThemeStories',
+          options: HttpsCallableOptions(timeout: const Duration(minutes: 9)),
+        )
+        .call();
   }
 }

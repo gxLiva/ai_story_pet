@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/app_router.dart';
+import '../../../auth/providers/auth_providers.dart';
+import '../../models/story.dart';
 import '../../providers/story_providers.dart';
 import '../widgets/lumie_celebration_overlay.dart';
 import '../widgets/story_image.dart';
@@ -42,7 +44,28 @@ class StoryScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _finishStory(BuildContext context) async {
+  Future<void> _finishStory(
+    BuildContext context,
+    WidgetRef ref,
+    Story story,
+    StoryReadingKey readingKey,
+  ) async {
+    final userId = ref.read(currentUserProvider)?.uid;
+    if (userId != null) {
+      try {
+        await ref
+            .read(storyActivityRepositoryProvider)
+            .saveProgress(
+              userId: userId,
+              storyId: story.id,
+              state: ref.read(storyReadingProvider(readingKey)),
+              completed: true,
+            );
+      } catch (error) {
+        debugPrint('[StoryProgress] Could not save completion: $error');
+      }
+    }
+    if (!context.mounted) return;
     await showLumieCelebrationOverlay(
       context: context,
       celebration: pickRandomCelebration(_storyCelebrations),
@@ -70,7 +93,10 @@ class StoryScreen extends ConsumerWidget {
               const Text('We could not load that story.'),
               const SizedBox(height: 16),
               ElevatedButton(
-                onPressed: () => ref.invalidate(userStoryProvider(storyId)),
+                onPressed: () {
+                  ref.invalidate(userStoryProvider(storyId));
+                  ref.invalidate(sharedStoryProvider(storyId));
+                },
                 child: const Text('Try again'),
               ),
               TextButton(
@@ -102,15 +128,42 @@ class StoryScreen extends ConsumerWidget {
       );
     }
 
-    final readingState = ref.watch(storyReadingProvider(storyId));
+    ref.watch(storyOpenedProvider(storyId));
+    final readingKey = ref.watch(storyReadingKeyProvider(storyId));
+    final readingNotifier = ref.read(storyReadingProvider(readingKey).notifier);
+    final savedProgress = ref
+        .watch(storyActivityProvider)
+        .asData
+        ?.value
+        .progressFor(storyId);
+    if (savedProgress != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        readingNotifier.hydrate(savedProgress.state);
+      });
+    }
+    final readingState = ref.watch(storyReadingProvider(readingKey));
     final pageIndex = readingState.currentPageIndex.clamp(
       0,
       story.pages.length - 1,
     );
     final page = story.pages[pageIndex];
-    final readingNotifier = ref.read(storyReadingProvider(storyId).notifier);
     final canGoNext = readingNotifier.canLeavePage(page);
     final isLastPage = pageIndex == story.pages.length - 1;
+
+    void saveProgress() {
+      final userId = ref.read(currentUserProvider)?.uid;
+      if (userId == null) return;
+      ref
+          .read(storyActivityRepositoryProvider)
+          .saveProgress(
+            userId: userId,
+            storyId: story.id,
+            state: ref.read(storyReadingProvider(readingKey)),
+          )
+          .catchError((Object error) {
+            debugPrint('[StoryProgress] Could not save progress: $error');
+          });
+    }
 
     return Scaffold(
       backgroundColor: _background,
@@ -146,7 +199,10 @@ class StoryScreen extends ConsumerWidget {
               pageCount: story.pages.length,
               canSelectPage: (index) =>
                   readingNotifier.canNavigateToPage(story, index),
-              onPageSelected: (index) => readingNotifier.goToPage(story, index),
+              onPageSelected: (index) {
+                readingNotifier.goToPage(story, index);
+                saveProgress();
+              },
               onLockedPageSelected: () {
                 ScaffoldMessenger.of(context)
                   ..hideCurrentSnackBar()
@@ -225,7 +281,10 @@ class StoryScreen extends ConsumerWidget {
                     isFinishAction: false,
                     onPressed: pageIndex == 0
                         ? null
-                        : readingNotifier.previousPage,
+                        : () {
+                            readingNotifier.previousPage();
+                            saveProgress();
+                          },
                   ),
                   const SizedBox(width: 12),
                   _PageNavigationButton(
@@ -239,9 +298,15 @@ class StoryScreen extends ConsumerWidget {
                     onPressed: canGoNext
                         ? () async {
                             if (isLastPage) {
-                              await _finishStory(context);
+                              await _finishStory(
+                                context,
+                                ref,
+                                story,
+                                readingKey,
+                              );
                             } else {
                               readingNotifier.nextPage(story);
+                              saveProgress();
                             }
                           }
                         : null,

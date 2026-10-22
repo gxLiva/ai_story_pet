@@ -35,36 +35,46 @@ void main() {
     );
   });
 
-  test('reading progress and answers are independent for every story', () {
+  test('reading progress is independent for every story and user', () {
     final container = ProviderContainer();
     addTearDown(container.dispose);
     final mia = container.read(storyProvider(miaStoryId)).asData!.value!;
     final fixture = buildTestStory();
-    final miaReader = container.read(storyReadingProvider(miaStoryId).notifier);
+    const miaKey = StoryReadingKey(userId: 'reader-1', storyId: miaStoryId);
+    const fixtureKey = StoryReadingKey(
+      userId: 'reader-1',
+      storyId: testStoryId,
+    );
+    const otherUserKey = StoryReadingKey(
+      userId: 'reader-2',
+      storyId: miaStoryId,
+    );
+    final miaReader = container.read(storyReadingProvider(miaKey).notifier);
     final fixtureReader = container.read(
-      storyReadingProvider(testStoryId).notifier,
+      storyReadingProvider(fixtureKey).notifier,
     );
 
     miaReader.nextPage(mia);
     fixtureReader.selectAnswer('sam-feeling', 'curious');
 
+    expect(container.read(storyReadingProvider(miaKey)).currentPageIndex, 1);
     expect(
-      container.read(storyReadingProvider(miaStoryId)).currentPageIndex,
-      1,
-    );
-    expect(
-      container.read(storyReadingProvider(miaStoryId)).selectedAnswers,
+      container.read(storyReadingProvider(miaKey)).selectedAnswers,
       isEmpty,
     );
     expect(
-      container.read(storyReadingProvider(testStoryId)).currentPageIndex,
+      container.read(storyReadingProvider(fixtureKey)).currentPageIndex,
       0,
     );
     expect(
       container
-          .read(storyReadingProvider(testStoryId))
+          .read(storyReadingProvider(fixtureKey))
           .selectedAnswers['sam-feeling'],
       'curious',
+    );
+    expect(
+      container.read(storyReadingProvider(otherUserKey)).currentPageIndex,
+      0,
     );
     expect(fixture.pages, hasLength(5));
   });

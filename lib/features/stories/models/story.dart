@@ -10,6 +10,7 @@ class Story {
     this.formatVersion = 1,
     this.mainCharacterName = '',
     this.mainCharacterDescription = '',
+    this.practice,
   });
 
   final String id;
@@ -22,6 +23,10 @@ class Story {
   final int formatVersion;
   final String mainCharacterName;
   final String mainCharacterDescription;
+  final PracticeScenario? practice;
+
+  PracticeScenario get practiceScenario =>
+      practice ?? PracticeScenario.fromStory(this);
 
   factory Story.fromMap(Map<String, dynamic> map, {String? documentId}) {
     final storyId = map['id'] == null
@@ -65,6 +70,9 @@ class Story {
         map,
         'mainCharacterDescription',
       ),
+      practice: map['practice'] == null
+          ? null
+          : PracticeScenario.fromMap(_stringMap(map['practice'], 'practice')),
     );
   }
 
@@ -80,8 +88,214 @@ class Story {
     if (mainCharacterName.isNotEmpty) 'mainCharacterName': mainCharacterName,
     if (mainCharacterDescription.isNotEmpty)
       'mainCharacterDescription': mainCharacterDescription,
+    if (practice != null) 'practice': practice!.toMap(),
   };
 }
+
+class PracticeScenario {
+  const PracticeScenario({
+    required this.situation,
+    required this.prompt,
+    required this.actions,
+  });
+
+  final String situation;
+  final String prompt;
+  final List<PracticeAction> actions;
+
+  factory PracticeScenario.fromMap(Map<String, dynamic> map) {
+    final actions = _mapList(
+      map,
+      'actions',
+      'practice',
+      PracticeAction.fromMap,
+    );
+    if (actions.length < 2 || actions.length > 4) {
+      throw const FormatException('A practice must contain 2 to 4 actions.');
+    }
+    _requireUniqueIds(actions.map((action) => action.id), 'practice actions');
+    return PracticeScenario(
+      situation: _requiredString(map, 'situation', 'practice'),
+      prompt: _requiredString(map, 'prompt', 'practice'),
+      actions: List.unmodifiable(actions),
+    );
+  }
+
+  factory PracticeScenario.fromStory(Story story) {
+    final character = story.mainCharacterName.isEmpty
+        ? 'the character'
+        : story.mainCharacterName;
+    final situation = story.description.isNotEmpty
+        ? story.description
+        : story.pages.first.text;
+    final templates =
+        _practiceTemplates[story.category] ?? _practiceTemplates['Friendship']!;
+    return PracticeScenario(
+      situation: situation,
+      prompt: 'If you were $character, what would you choose to do?',
+      actions: List.unmodifiable(
+        templates.indexed
+            .map(
+              (entry) => PracticeAction(
+                id: 'choice-${entry.$1 + 1}',
+                label: entry.$2.$1,
+                emoji: entry.$2.$2,
+                feedback: entry.$2.$3,
+                outcome: entry.$2.$4.replaceAll('{name}', character),
+              ),
+            )
+            .toList(growable: false),
+      ),
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'situation': situation,
+    'prompt': prompt,
+    'actions': actions.map((action) => action.toMap()).toList(growable: false),
+  };
+}
+
+class PracticeAction {
+  const PracticeAction({
+    required this.id,
+    required this.label,
+    required this.emoji,
+    required this.feedback,
+    required this.outcome,
+  });
+
+  final String id;
+  final String label;
+  final String emoji;
+  final String feedback;
+  final String outcome;
+
+  factory PracticeAction.fromMap(Map<String, dynamic> map) {
+    return PracticeAction(
+      id: _requiredString(map, 'id', 'practice action'),
+      label: _requiredString(map, 'label', 'practice action'),
+      emoji: _requiredString(map, 'emoji', 'practice action'),
+      feedback: _requiredString(map, 'feedback', 'practice action'),
+      outcome: _requiredString(map, 'outcome', 'practice action'),
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'label': label,
+    'emoji': emoji,
+    'feedback': feedback,
+    'outcome': outcome,
+  };
+}
+
+const _practiceTemplates = <String, List<(String, String, String, String)>>{
+  'Friendship': [
+    (
+      'Say what you need',
+      '💬',
+      'Speaking up can help others understand you.',
+      '{name} shares what they need, and the others have a chance to respond.',
+    ),
+    (
+      'Watch and listen first',
+      '👀',
+      'Taking time to notice can help you feel ready.',
+      '{name} learns more about the situation before choosing a next step.',
+    ),
+    (
+      'Ask someone for help',
+      '🤝',
+      'Getting support is a thoughtful choice.',
+      '{name} finds someone who can help make the next step feel easier.',
+    ),
+    (
+      'Take a little time',
+      '🌤️',
+      'It is okay to move at your own pace.',
+      '{name} pauses, feels steadier, and can try again later.',
+    ),
+  ],
+  'Big Feelings': [
+    (
+      'Name the feeling',
+      '💬',
+      'Naming a feeling can make it easier to understand.',
+      '{name} recognizes the feeling and has a clearer idea of what they need.',
+    ),
+    (
+      'Take slow breaths',
+      '🌬️',
+      'A calm breath gives your body time to settle.',
+      '{name} slows down and feels ready to decide what comes next.',
+    ),
+    (
+      'Talk to someone',
+      '🤝',
+      'Sharing a big feeling can make it less lonely.',
+      '{name} receives care and a helpful new point of view.',
+    ),
+    (
+      'Find a quiet space',
+      '🌿',
+      'A short break can give a feeling room to soften.',
+      '{name} takes a pause and returns when they feel ready.',
+    ),
+  ],
+  'Transition': [
+    (
+      'Ask what happens next',
+      '❓',
+      'Knowing the next step can make change feel smaller.',
+      '{name} gets useful information and feels more prepared.',
+    ),
+    (
+      'Bring something familiar',
+      '🧸',
+      'A familiar object can bring comfort during change.',
+      '{name} carries a reminder of safety into the new situation.',
+    ),
+    (
+      'Try one part first',
+      '🌱',
+      'Small steps still move you forward.',
+      '{name} tries a manageable part and builds confidence.',
+    ),
+    (
+      'Tell someone how you feel',
+      '💬',
+      'Others can support you when they know what is hard.',
+      '{name} is heard and gets help with the change.',
+    ),
+  ],
+  'Courage': [
+    (
+      'Try one small step',
+      '🌱',
+      'Courage can begin with one manageable step.',
+      '{name} tries a little, learns something, and feels more ready.',
+    ),
+    (
+      'Make a simple plan',
+      '📋',
+      'A plan can make a brave choice feel clearer.',
+      '{name} knows what to do first and moves ahead carefully.',
+    ),
+    (
+      'Ask for support',
+      '🤝',
+      'Being brave does not mean doing everything alone.',
+      '{name} gets encouragement and faces the moment with support.',
+    ),
+    (
+      'Pause and try later',
+      '⏳',
+      'Waiting until you are ready can be a wise choice.',
+      '{name} takes time to prepare and keeps the choice open.',
+    ),
+  ],
+};
 
 String _optionalString(Map<String, dynamic> map, String key) {
   final value = map[key];

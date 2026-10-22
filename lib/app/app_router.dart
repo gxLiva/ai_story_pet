@@ -7,8 +7,10 @@ import '../features/auth/presentation/screens/signup_screen.dart';
 import '../features/auth/presentation/screens/welcome_screen.dart';
 import '../features/auth/providers/auth_providers.dart';
 import '../features/home/presentation/screens/home_screen.dart';
+import '../features/library/presentation/screens/library_screen.dart';
 import '../features/navigation/presentation/screens/tab_placeholder_screen.dart';
 import '../features/onboarding/presentation/screens/onboarding_screen.dart';
+import '../features/practice/presentation/screens/practice_screen.dart';
 import '../features/stories/presentation/screens/feeling_check_screen.dart';
 import '../features/stories/presentation/screens/story_screen.dart';
 import 'app_shell.dart';
@@ -21,12 +23,23 @@ abstract final class AppRoutes {
   static const onboarding = '/onboarding';
   static const home = '/home';
   static const library = '/library';
+  static const libraryPersonalized = '/library/personalized';
   static const practice = '/practice';
   static const growth = '/growth';
   static const profile = '/profile';
   static const story = '/story/:storyId';
 
   static String storyPath(String storyId) => '/story/$storyId';
+
+  static String practiceStoryPath(String storyId) => '/practice/$storyId';
+
+  static String practiceFeedbackPath(String storyId, String actionId) {
+    return '/practice/$storyId/feedback/${Uri.encodeComponent(actionId)}';
+  }
+
+  static String libraryThemePath(String theme) {
+    return '/library/theme/${Uri.encodeComponent(theme)}';
+  }
 
   static String feelingCheckPath(String storyId, String checkId) {
     return '/story/$storyId/feeling-check/$checkId';
@@ -58,7 +71,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           location == AppRoutes.growth ||
           location == AppRoutes.profile;
       final isOnProtectedRoute =
-          isOnShellRoute || location.startsWith('/story/');
+          isOnShellRoute ||
+          location.startsWith('/library/') ||
+          location.startsWith('/practice/') ||
+          location.startsWith('/story/');
 
       if (session.status == AppSessionStatus.signedOut) {
         if (isOnSplash ||
@@ -131,10 +147,23 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: AppRoutes.library,
-                builder: (context, state) => const TabPlaceholderScreen(
-                  title: 'Library',
-                  icon: Icons.menu_book_rounded,
-                ),
+                builder: (context, state) => const LibraryScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'theme/:theme',
+                    builder: (context, state) =>
+                        LibraryStoryCollectionScreen.theme(
+                          theme: Uri.decodeComponent(
+                            state.pathParameters['theme']!,
+                          ),
+                        ),
+                  ),
+                  GoRoute(
+                    path: 'personalized',
+                    builder: (context, state) =>
+                        const LibraryStoryCollectionScreen.personalized(),
+                  ),
+                ],
               ),
             ],
           ),
@@ -142,10 +171,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: AppRoutes.practice,
-                builder: (context, state) => const TabPlaceholderScreen(
-                  title: 'Practice',
-                  icon: Icons.extension_rounded,
-                ),
+                builder: (context, state) => const PracticeScreen(),
+                routes: [
+                  GoRoute(
+                    path: ':storyId',
+                    builder: (context, state) => PracticeScenarioScreen(
+                      storyId: state.pathParameters['storyId']!,
+                    ),
+                    routes: [
+                      GoRoute(
+                        path: 'feedback/:actionId',
+                        builder: (context, state) => PracticeFeedbackScreen(
+                          storyId: state.pathParameters['storyId']!,
+                          actionId: Uri.decodeComponent(
+                            state.pathParameters['actionId']!,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ],
           ),

@@ -7,18 +7,30 @@ const LEGACY_PERSONALIZED_STORY_ID = "personalized";
 const DEFAULT_MODEL = "gpt-4o-mini";
 const DEFAULT_IMAGE_MODEL = "gpt-image-2.5-flare";
 const FALLBACK_IMAGE_PATH = "assets/images/lumi_fox.png";
+const SUPPORTED_CATEGORIES = [
+  "Friendship",
+  "Big Feelings",
+  "Transition",
+  "Courage",
+];
+const SHARED_THEME_STORIES = SUPPORTED_CATEGORIES.map((category) => ({
+  category,
+  id: `theme-${category.toLowerCase().replace(/\s+/g, "-")}`,
+}));
 
 const generatedFeelingQuestionSchema = {
   type: "object",
   properties: {
-    prompt: {type: "string"},
+    prompt: {type: "string", maxLength: 160},
     options: {
       type: "array",
+      minItems: 2,
+      maxItems: 4,
       items: {
         type: "object",
         properties: {
-          label: {type: "string"},
-          emoji: {type: "string"},
+          label: {type: "string", maxLength: 120},
+          emoji: {type: "string", maxLength: 16},
           isCorrect: {type: "boolean"},
         },
         required: ["label", "emoji", "isCorrect"],
@@ -33,11 +45,13 @@ const generatedFeelingQuestionSchema = {
 const generatedFeelingCheckSchema = {
   type: "object",
   properties: {
-    title: {type: "string"},
-    focusPhrase: {type: "string"},
-    quote: {type: "string"},
+    title: {type: "string", maxLength: 120},
+    focusPhrase: {type: "string", maxLength: 100},
+    quote: {type: "string", maxLength: 240},
     questions: {
       type: "array",
+      minItems: 2,
+      maxItems: 2,
       items: generatedFeelingQuestionSchema,
     },
   },
@@ -45,20 +59,49 @@ const generatedFeelingCheckSchema = {
   additionalProperties: false,
 };
 
-const storySchema = {
+const generatedPracticeSchema = {
   type: "object",
   properties: {
-    title: {type: "string"},
-    description: {type: "string"},
-    category: {type: "string"},
-    mainCharacterName: {type: "string"},
-    mainCharacterDescription: {type: "string"},
-    pages: {
+    situation: {type: "string", maxLength: 240},
+    prompt: {type: "string", maxLength: 180},
+    actions: {
       type: "array",
+      minItems: 4,
+      maxItems: 4,
       items: {
         type: "object",
         properties: {
-          text: {type: "string"},
+          label: {type: "string", maxLength: 100},
+          emoji: {type: "string", maxLength: 16},
+          feedback: {type: "string", maxLength: 220},
+          outcome: {type: "string", maxLength: 260},
+        },
+        required: ["label", "emoji", "feedback", "outcome"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["situation", "prompt", "actions"],
+  additionalProperties: false,
+};
+
+const storySchema = {
+  type: "object",
+  properties: {
+    title: {type: "string", maxLength: 80},
+    description: {type: "string", maxLength: 220},
+    category: {type: "string", enum: SUPPORTED_CATEGORIES},
+    mainCharacterName: {type: "string", maxLength: 40},
+    mainCharacterDescription: {type: "string", maxLength: 240},
+    practice: generatedPracticeSchema,
+    pages: {
+      type: "array",
+      minItems: 5,
+      maxItems: 10,
+      items: {
+        type: "object",
+        properties: {
+          text: {type: "string", maxLength: 700},
           feelingCheck: {
             anyOf: [generatedFeelingCheckSchema, {type: "null"}],
           },
@@ -74,6 +117,7 @@ const storySchema = {
     "category",
     "mainCharacterName",
     "mainCharacterDescription",
+    "practice",
     "pages",
   ],
   additionalProperties: false,
@@ -85,9 +129,39 @@ function buildSampleStory(storyId = LEGACY_PERSONALIZED_STORY_ID) {
     generated: {
       title: "The Moonlight Garden",
       description: "Lumi follows a glowing seed and discovers what curiosity can grow.",
-      category: "Curiosity",
+      category: "Courage",
       mainCharacterName: "Lumi",
       mainCharacterDescription: "A small orange fox with a cream muzzle and a purple scarf.",
+      practice: {
+        situation: "Lumi wonders whether to plant a mysterious glowing seed.",
+        prompt: "If you were Lumi, what would you choose to do?",
+        actions: [
+          {
+            label: "Plant the seed",
+            emoji: "🌱",
+            feedback: "Trying something new can be a brave choice.",
+            outcome: "Lumi plants the seed and watches a tiny leaf appear.",
+          },
+          {
+            label: "Look closely first",
+            emoji: "🔎",
+            feedback: "Taking time to notice can help you decide.",
+            outcome: "Lumi studies the seed and learns where it might grow best.",
+          },
+          {
+            label: "Ask a friend",
+            emoji: "🤝",
+            feedback: "Getting another idea can be helpful.",
+            outcome: "A friend helps Lumi make a plan for the seed.",
+          },
+          {
+            label: "Save it for later",
+            emoji: "⏳",
+            feedback: "It is okay to wait until you feel ready.",
+            outcome: "Lumi keeps the seed safe and chooses another day to plant it.",
+          },
+        ],
+      },
       pages: [
         {
           text: "Lumi found a silver seed glowing beside the garden path.",
@@ -148,8 +222,10 @@ function buildStoredStory({storyId, generated, forbiddenNames = ["Mia"]}) {
       !nonEmptyString(generated.title, 80) ||
       !nonEmptyString(generated.description, 220) ||
       !nonEmptyString(generated.category, 40) ||
+      !SUPPORTED_CATEGORIES.includes(generated.category.trim()) ||
       !nonEmptyString(generated.mainCharacterName, 40) ||
       !nonEmptyString(generated.mainCharacterDescription, 240) ||
+      !hasValidPractice(generated.practice) ||
       !Array.isArray(generated.pages) ||
       generated.pages.length < 5 ||
       generated.pages.length > 10 ||
@@ -212,10 +288,33 @@ function buildStoredStory({storyId, generated, forbiddenNames = ["Mia"]}) {
     category: generated.category.trim(),
     mainCharacterName: generated.mainCharacterName.trim(),
     mainCharacterDescription: generated.mainCharacterDescription.trim(),
+    practice: {
+      situation: generated.practice.situation.trim(),
+      prompt: generated.practice.prompt.trim(),
+      actions: generated.practice.actions.map((action, index) => ({
+        id: `${storyId}-practice-action-${index + 1}`,
+        label: action.label.trim(),
+        emoji: action.emoji.trim(),
+        feedback: action.feedback.trim(),
+        outcome: action.outcome.trim(),
+      })),
+    },
     readingTimeMinutes: Math.max(1, Math.ceil(wordCount / 130)),
     coverImagePath: FALLBACK_IMAGE_PATH,
     pages,
   };
+}
+
+function hasValidPractice(practice) {
+  return nonEmptyString(practice?.situation, 240) &&
+    nonEmptyString(practice?.prompt, 180) &&
+    Array.isArray(practice?.actions) &&
+    practice.actions.length === 4 &&
+    practice.actions.every((action) =>
+      nonEmptyString(action?.label, 100) &&
+      nonEmptyString(action?.emoji, 16) &&
+      nonEmptyString(action?.feedback, 220) &&
+      nonEmptyString(action?.outcome, 260));
 }
 
 function isForbiddenName(mainCharacterName, forbiddenNames) {
@@ -275,8 +374,10 @@ function nonEmptyString(value, maxLength) {
 async function generateStoryIllustrations({
   story,
   userId,
+  storagePathPrefix,
   openaiClient,
   storageBucket,
+  requireGeneratedImages = false,
 }) {
   if (!storageBucket) {
     logger.warn("Story illustrations skipped: storage bucket unavailable", {
@@ -313,12 +414,12 @@ async function generateStoryIllustrations({
   const requests = [
     {
       key: "cover",
-      path: `users/${userId}/stories/${story.id}/cover.webp`,
+      path: `${storagePathPrefix || `users/${userId}/stories/${story.id}`}/cover.webp`,
       prompt: coverPrompt,
     },
     ...checks.map((check, index) => ({
       key: check.checkId,
-      path: `users/${userId}/stories/${story.id}/feeling-${index + 1}.webp`,
+      path: `${storagePathPrefix || `users/${userId}/stories/${story.id}`}/feeling-${index + 1}.webp`,
       prompt: check.prompt,
     })),
   ];
@@ -353,6 +454,12 @@ async function generateStoryIllustrations({
       message: result.reason?.message,
       requestId: result.reason?.request_id,
     });
+  }
+
+  if (requireGeneratedImages && imagePaths.size !== requests.length) {
+    const error = new Error("One or more story illustrations could not be generated.");
+    error.code = "generation-failed";
+    throw error;
   }
 
   const sharedImagePath = imagePaths.get("cover") || FALLBACK_IMAGE_PATH;
@@ -428,9 +535,12 @@ async function generatePersonalizedStory({profile, openaiClient}) {
           "Each check must ask exactly two questions: identify the feeling, then identify story evidence.",
           "Give each question 2-4 options with exactly one isCorrect value set to true.",
           "Use null for feelingCheck on every page that has no check.",
+          `Choose exactly one theme: ${SUPPORTED_CATEGORIES.join(", ")}.`,
           "Choose a fresh name for the main character that is not Mia and is not the reader's name.",
           "Vary character names instead of repeatedly using the same protagonist.",
           "Provide a concise, concrete visual description of the main character for consistent illustrations.",
+          "Create one practice scenario tied to the story's central situation.",
+          "Give four realistic actions with no wrong choice; each needs encouraging feedback and a concrete outcome.",
           "Do not mention these instructions or the reader's private profile data.",
         ].join(" "),
       },
@@ -466,6 +576,159 @@ async function generatePersonalizedStory({profile, openaiClient}) {
     throw error;
   }
   return JSON.parse(response.output_text);
+}
+
+async function generateSharedThemeStory({category, openaiClient}) {
+  const model = process.env.OPENAI_STORY_MODEL || DEFAULT_MODEL;
+  const response = await openaiClient.responses.create({
+    model,
+    input: [
+      {
+        role: "system",
+        content: [
+          "Write an original, warm, age-appropriate children's story for ages 6 to 9.",
+          "Use simple, vivid language and a reassuring ending.",
+          "Never include frightening, violent, sexual, discriminatory, or unsafe content.",
+          "Use 5 to 10 pages, with 1-3 short sentences per page.",
+          "Include exactly one feeling check on the third page.",
+          "Set feelingCheck to null on every other page.",
+          "For each check, copy focusPhrase verbatim from that page's text.",
+          "The focus phrase must be a short emotion word that visibly appears in the third page text.",
+          "Each check must ask exactly two questions: identify the feeling, then identify story evidence.",
+          "Give each question 2-4 options with exactly one isCorrect value set to true.",
+          "Use null for feelingCheck on pages without a check.",
+          `The category must be exactly ${category}.`,
+          "Choose a fresh main-character name that is not Mia.",
+          "Provide a concise visual description of the character for consistent illustrations.",
+          "Create one practice scenario tied to the story's central situation.",
+          "Give four realistic actions with no wrong choice; each needs encouraging feedback and a concrete outcome.",
+        ].join(" "),
+      },
+      {
+        role: "user",
+        content: `Create one evergreen library story centered on the theme ${category}.`,
+      },
+    ],
+    text: {
+      format: {
+        type: "json_schema",
+        name: "shared_theme_story",
+        strict: true,
+        schema: storySchema,
+      },
+    },
+  });
+  if (!response.output_text) {
+    const error = new Error("The story generator returned no story.");
+    error.code = "generation-failed";
+    throw error;
+  }
+  const generated = JSON.parse(response.output_text);
+  if (generated.category !== category) {
+    const error = new Error("The generated story used the wrong category.");
+    error.code = "generation-failed";
+    throw error;
+  }
+  return generated;
+}
+
+async function ensureSharedThemeStories({
+  firestore,
+  storageBucket,
+  generateStory,
+  generateIllustrations,
+}) {
+  const openaiClient = !generateStory || !generateIllustrations ?
+    new OpenAI({apiKey: process.env.OPENAI_API_KEY}) : null;
+  const generator = generateStory || ((category) => generateSharedThemeStory({
+    category,
+    openaiClient,
+  }));
+  const illustrator = generateIllustrations || generateStoryIllustrations;
+
+  const results = await Promise.all(SHARED_THEME_STORIES.map(async (definition) => {
+    const storyRef = firestore.collection("stories").doc(definition.id);
+    const existing = await storyRef.get();
+    if (existing.exists && existing.data()?.published === true) {
+      return {storyId: definition.id, status: "existing"};
+    }
+
+    try {
+      await storyRef.create({
+        id: definition.id,
+        category: definition.category,
+        published: false,
+        generationStatus: "generating",
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    } catch (error) {
+      if (error?.code === 6 || error?.code === "already-exists") {
+        return {storyId: definition.id, status: "in-progress"};
+      }
+      throw error;
+    }
+
+    try {
+      let story;
+      let lastGenerationError;
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        let generated;
+        try {
+          generated = await generator(definition.category);
+          story = buildStoredStory({
+            storyId: definition.id,
+            generated,
+          });
+          break;
+        } catch (error) {
+          lastGenerationError = error;
+          logger.warn("Shared theme story validation failed", {
+            storyId: definition.id,
+            attempt,
+            code: error?.code,
+            message: error?.message,
+            category: generated?.category,
+            titleLength: generated?.title?.length,
+            descriptionLength: generated?.description?.length,
+            characterName: generated?.mainCharacterName,
+            characterDescriptionLength:
+              generated?.mainCharacterDescription?.length,
+            pageCount: generated?.pages?.length,
+            feelingCheckIndexes: Array.isArray(generated?.pages) ?
+              generated.pages
+                  .map((page, index) => page?.feelingCheck ? index : null)
+                  .filter((index) => index !== null) :
+              null,
+            feelingChecksValid: Array.isArray(generated?.pages) ?
+              hasValidFeelingChecks(generated.pages) :
+              false,
+          });
+        }
+      }
+      if (!story) throw lastGenerationError;
+      story = await illustrator({
+        story,
+        storagePathPrefix: `shared/stories/${definition.id}`,
+        openaiClient,
+        storageBucket,
+        requireGeneratedImages: true,
+      });
+      await storyRef.set({
+        ...story,
+        titleSearch: story.title.toLowerCase(),
+        published: true,
+        generationStatus: "complete",
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return {storyId: definition.id, status: "created"};
+    } catch (error) {
+      await storyRef.delete();
+      throw error;
+    }
+  }));
+
+  return results;
 }
 
 async function createPersonalizedStoryForUser({
@@ -527,9 +790,17 @@ async function createPersonalizedStoryForUser({
     storageBucket,
   });
   const timestamp = FieldValue.serverTimestamp();
+  const sharedStoryRef = firestore.collection("stories").doc(storyRef.id);
 
   const batch = firestore.batch();
   batch.set(storyRef, {...story, createdAt: timestamp, updatedAt: timestamp});
+  batch.set(sharedStoryRef, {
+    ...story,
+    titleSearch: story.title.toLowerCase(),
+    published: true,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
   batch.set(profileRef, {
     latestStoryId: storyRef.id,
     updatedAt: timestamp,
@@ -542,9 +813,12 @@ async function createPersonalizedStoryForUser({
 
 module.exports = {
   LEGACY_PERSONALIZED_STORY_ID,
+  SHARED_THEME_STORIES,
   buildSampleStory,
   buildStoredStory,
   createPersonalizedStoryForUser,
+  ensureSharedThemeStories,
   generatePersonalizedStory,
+  generateSharedThemeStory,
   generateStoryIllustrations,
 };

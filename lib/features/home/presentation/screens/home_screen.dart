@@ -26,20 +26,40 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final story = ref.watch(storyProvider(miaStoryId)).asData?.value;
-    final readingState = ref.watch(storyReadingProvider(miaStoryId));
+    final activityState = ref.watch(storyActivityProvider);
+    final activity = activityState.asData?.value ?? const StoryActivity([]);
+    final keepReadingStoryId = activity.mostRecentStoryId ?? miaStoryId;
+    final story = ref.watch(storyProvider(keepReadingStoryId)).asData?.value;
+    final readingKey = ref.watch(storyReadingKeyProvider(keepReadingStoryId));
+    final readingState = ref.watch(storyReadingProvider(readingKey));
+    final savedReadingState = activity.progressFor(keepReadingStoryId)?.state;
+    final effectiveReadingState = savedReadingState ?? readingState;
+    final sharedStoriesState = ref.watch(sharedStoriesProvider);
+    final completedStoryIds = activity.completedStoryIds;
+    final publicStories = [...?sharedStoriesState.asData?.value]
+      ..sort((first, second) => first.id.compareTo(second.id));
+    final shouldRecommendMia = !completedStoryIds.contains(miaStoryId);
+    final recommendedStory = shouldRecommendMia
+        ? ref.watch(storyProvider(miaStoryId)).asData?.value
+        : publicStories.cast<Story?>().firstWhere(
+            (candidate) =>
+                candidate != null && !completedStoryIds.contains(candidate.id),
+            orElse: () => publicStories.firstOrNull,
+          );
+    final recommendationIsLoading =
+        !shouldRecommendMia && sharedStoriesState.isLoading;
     final personalizedStoryState = ref.watch(latestPersonalizedStoryProvider);
     final creationState = ref.watch(personalizedStoryCreationProvider);
     final pageCount = story?.pages.length ?? 1;
     final currentPage =
-        readingState.currentPageIndex.clamp(0, pageCount - 1) + 1;
+        effectiveReadingState.currentPageIndex.clamp(0, pageCount - 1) + 1;
     final progress = currentPage / pageCount;
 
-    void openMiaStory() {
+    void openStory(String storyId) {
       if (onStartStory != null) {
         onStartStory!();
       } else {
-        context.push(AppRoutes.storyPath(miaStoryId));
+        context.push(AppRoutes.storyPath(storyId));
       }
     }
 
@@ -111,7 +131,14 @@ class HomeScreen extends ConsumerWidget {
             children: [
               const _HomeHeader(),
               const SizedBox(height: 22),
-              _LumiStoryCard(onStartStory: openMiaStory),
+              _LumiStoryCard(
+                story: recommendedStory,
+                isLoading: recommendationIsLoading,
+                hasError: !shouldRecommendMia && sharedStoriesState.hasError,
+                onStartStory: recommendedStory == null
+                    ? null
+                    : () => openStory(recommendedStory.id),
+              ),
               const SizedBox(height: 20),
               const Row(
                 children: [
@@ -148,10 +175,11 @@ class HomeScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 14),
               _ReadingCard(
+                story: story,
                 currentPage: currentPage,
                 pageCount: pageCount,
                 progress: progress,
-                onTap: openMiaStory,
+                onTap: () => openStory(keepReadingStoryId),
               ),
               const SizedBox(height: 30),
               const Text(
@@ -619,8 +647,16 @@ class _HomeHeaderState extends ConsumerState<_HomeHeader> {
 }
 
 class _LumiStoryCard extends StatelessWidget {
-  const _LumiStoryCard({this.onStartStory});
+  const _LumiStoryCard({
+    required this.story,
+    required this.isLoading,
+    required this.hasError,
+    this.onStartStory,
+  });
 
+  final Story? story;
+  final bool isLoading;
+  final bool hasError;
   final VoidCallback? onStartStory;
 
   @override
@@ -724,12 +760,16 @@ class _LumiStoryCard extends StatelessWidget {
                     color: const Color(0x299999EE),
                     borderRadius: BorderRadius.circular(17),
                   ),
-                  child: const FittedBox(
+                  child: FittedBox(
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'Want to read a story about\nmaking a new friend? 💛',
-                      style: TextStyle(
+                      isLoading
+                          ? 'Finding your next story…'
+                          : hasError
+                          ? 'Your next story is taking a little longer.'
+                          : 'Next up: ${story?.title ?? 'Mia Joins the Game'} 📚',
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
@@ -743,7 +783,8 @@ class _LumiStoryCard extends StatelessWidget {
                   width: double.infinity,
                   height: 48,
                   child: ElevatedButton.icon(
-                    onPressed: onStartStory ?? () {},
+                    key: const ValueKey('start-recommended-story-button'),
+                    onPressed: onStartStory,
                     style: ElevatedButton.styleFrom(
                       elevation: 0,
                       foregroundColor: const Color(0xFF5B4CDD),
@@ -839,12 +880,14 @@ class _ProgressCard extends StatelessWidget {
 
 class _ReadingCard extends StatelessWidget {
   const _ReadingCard({
+    required this.story,
     required this.currentPage,
     required this.pageCount,
     required this.progress,
     required this.onTap,
   });
 
+  final Story? story;
   final int currentPage;
   final int pageCount;
   final double progress;
@@ -852,11 +895,21 @@ class _ReadingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final displayStory = story;
+    final title = displayStory?.title ?? 'Mia Joins the Game';
+    final imagePath =
+        displayStory?.coverImagePath ?? 'assets/images/mia_joins_game.png';
+    final category = displayStory?.category ?? 'Friendship';
     return Semantics(
+      key: const ValueKey('keep-reading-story-card'),
       button: true,
-      label: 'Continue Mia Joins the Game',
+      label: 'Continue $title',
       child: GestureDetector(
-        key: const ValueKey('mia-story-card'),
+        key: ValueKey(
+          displayStory?.id == null || displayStory?.id == miaStoryId
+              ? 'mia-story-card'
+              : 'recent-story-card',
+        ),
         onTap: onTap,
         child: Container(
           clipBehavior: Clip.antiAlias,
@@ -878,10 +931,7 @@ class _ReadingCard extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    const Image(
-                      image: AssetImage('assets/images/mia_joins_game.png'),
-                      fit: BoxFit.cover,
-                    ),
+                    StoryImage(path: imagePath, fit: BoxFit.cover),
                     const DecoratedBox(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
@@ -904,17 +954,17 @@ class _ReadingCard extends StatelessWidget {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(18),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            CircleAvatar(
+                            const CircleAvatar(
                               radius: 3,
                               backgroundColor: Color(0xFFFF826B),
                             ),
-                            SizedBox(width: 5),
+                            const SizedBox(width: 5),
                             Text(
-                              'FRIENDS',
-                              style: TextStyle(
+                              category.toUpperCase(),
+                              style: const TextStyle(
                                 color: Color(0xFF343746),
                                 fontSize: 10,
                                 fontWeight: FontWeight.w800,
@@ -924,13 +974,13 @@ class _ReadingCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const Positioned(
+                    Positioned(
                       left: 13,
                       right: 13,
                       bottom: 12,
                       child: Text(
-                        'Mia Joins the Game',
-                        style: TextStyle(
+                        title,
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 20,
                           fontWeight: FontWeight.w800,

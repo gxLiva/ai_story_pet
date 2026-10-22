@@ -16,7 +16,7 @@ final testStoryDocument = <String, dynamic>{
     },
     {
       'id': 'sam-page-2',
-      'imagePath': 'assets/images/lumi_fox.png',
+      'imagePath': 'assets/images/lumie_celebrate_jump.png',
       'text': 'A bright star made Sam feel curious.',
       'feelingCheck': {
         'id': 'sam-curious-check',

@@ -6,6 +6,7 @@ const {
   buildSampleStory,
   buildStoredStory,
   createPersonalizedStoryForUser,
+  ensureSharedThemeStories,
   generateStoryIllustrations,
 } = require("../story");
 
@@ -16,6 +17,7 @@ test("sample story matches the mobile story contract", () => {
   assert.equal(story.formatVersion, 2);
   assert.ok(story.description);
   assert.ok(story.readingTimeMinutes > 0);
+  assert.equal(story.practice.actions.length, 4);
   assert.equal(story.pages.length, 5);
   assert.equal(
       story.pages.filter((page) => page.feelingCheck).length,
@@ -175,6 +177,78 @@ test("each creation preserves the story and updates the latest pointer", async (
       firestore.documents.get("userProfiles/reader-1").latestStoryId,
       secondStoryId,
   );
+  const sharedWrites = firestore.writes.filter(
+      (write) => write.path.startsWith("stories/"),
+  );
+  assert.equal(sharedWrites.length, 2);
+  assert.ok(sharedWrites.every((write) => write.data.published === true));
+  assert.ok(sharedWrites.every(
+      (write) => write.data.titleSearch === "a new adventure",
+  ));
+});
+
+test("shared theme stories are generated once at stable ids", async () => {
+  const firestore = fakeFirestore({onboardingCompleted: true});
+  const generatedCategories = [];
+  const illustrationPaths = [];
+  const generateStory = async (category) => {
+    generatedCategories.push(category);
+    return {...fakeGeneratedStory(5), category};
+  };
+  const generateIllustrations = async ({story, storagePathPrefix}) => {
+    illustrationPaths.push(storagePathPrefix);
+    const coverImagePath = `https://images.test/${story.id}/cover.webp`;
+    return {
+      ...story,
+      coverImagePath,
+      pages: story.pages.map((page) => ({...page, imagePath: coverImagePath})),
+    };
+  };
+
+  const first = await ensureSharedThemeStories({
+    firestore,
+    generateStory,
+    generateIllustrations,
+  });
+  const second = await ensureSharedThemeStories({
+    firestore,
+    generateStory,
+    generateIllustrations,
+  });
+
+  assert.deepEqual(generatedCategories.sort(), [
+    "Big Feelings",
+    "Courage",
+    "Friendship",
+    "Transition",
+  ]);
+  assert.equal(first.filter((result) => result.status === "created").length, 4);
+  assert.equal(second.filter((result) => result.status === "existing").length, 4);
+  assert.ok(illustrationPaths.every((path) => path.startsWith("shared/stories/theme-")));
+  for (const category of generatedCategories) {
+    const storyId = `theme-${category.toLowerCase().replace(/\s+/g, "-")}`;
+    const saved = firestore.documents.get(`stories/${storyId}`);
+    assert.equal(saved.category, category);
+    assert.equal(saved.published, true);
+    assert.equal(saved.generationStatus, "complete");
+  }
+});
+
+test("shared theme stories retry invalid model responses", async () => {
+  const firestore = fakeFirestore({onboardingCompleted: true});
+  const attempts = new Map();
+
+  await ensureSharedThemeStories({
+    firestore,
+    generateStory: async (category) => {
+      const attempt = (attempts.get(category) || 0) + 1;
+      attempts.set(category, attempt);
+      return {...fakeGeneratedStory(attempt === 1 ? 4 : 5), category};
+    },
+    generateIllustrations: async ({story}) => story,
+  });
+
+  assert.deepEqual([...attempts.values()], [2, 2, 2, 2]);
 });
 
 async function fakeGenerator() {
@@ -188,6 +262,36 @@ function fakeGeneratedStory(pageCount) {
     category: "Friendship",
     mainCharacterName: "Noah",
     mainCharacterDescription: "A young explorer with curly hair and a green jacket.",
+    practice: {
+      situation: "Noah wonders how to join a new group.",
+      prompt: "If you were Noah, what would you choose to do?",
+      actions: [
+        {
+          label: "Say hello",
+          emoji: "👋",
+          feedback: "A greeting can open a conversation.",
+          outcome: "Noah says hello and the group smiles back.",
+        },
+        {
+          label: "Watch first",
+          emoji: "👀",
+          feedback: "Watching can help you feel ready.",
+          outcome: "Noah learns what the group is doing.",
+        },
+        {
+          label: "Ask for help",
+          emoji: "🤝",
+          feedback: "Support can make a new step easier.",
+          outcome: "A friend helps Noah join the activity.",
+        },
+        {
+          label: "Try later",
+          emoji: "⏳",
+          feedback: "It is okay to go at your own pace.",
+          outcome: "Noah takes time and tries again later.",
+        },
+      ],
+    },
     pages: Array.from({length: pageCount}, (_, index) => ({
       text: `Story page ${index + 1}.`,
       feelingCheck: index === 1 ? {
@@ -236,6 +340,18 @@ function fakeFirestore(profileData) {
           : data;
         documents.set(path, nextData);
         writes.push({path, data});
+      },
+      async create(data) {
+        if (documents.has(path)) {
+          const error = new Error("Document already exists.");
+          error.code = 6;
+          throw error;
+        }
+        documents.set(path, data);
+        writes.push({path, data});
+      },
+      async delete() {
+        documents.delete(path);
       },
       collection(name) {
         return collection(`${path}/${name}`);

@@ -12,6 +12,24 @@ service cloud.firestore {
                     && request.auth.uid == userId;
         allow write: if false;
       }
+
+      match /readingProgress/{storyId} {
+        allow read, create, update: if request.auth != null
+                                    && request.auth.uid == userId;
+        allow delete: if false;
+      }
+
+      match /practiceProgress/{storyId} {
+        allow read, create, update: if request.auth != null
+                                    && request.auth.uid == userId;
+        allow delete: if false;
+      }
+    }
+
+    match /stories/{storyId} {
+      allow read: if request.auth != null
+                  && resource.data.published == true;
+      allow write: if false;
     }
   }
 }

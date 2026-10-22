@@ -22,6 +22,8 @@ void main() {
   Future<void> pumpReadingApp(
     WidgetTester tester, {
     Story? additionalStory,
+    List<Story> sharedStories = const [],
+    StoryActivity? activity,
     StoryCreationService? creationService,
   }) async {
     router = GoRouter(
@@ -50,10 +52,18 @@ void main() {
       ProviderScope(
         overrides: [
           currentUserProvider.overrideWithValue(null),
-          if (additionalStory != null)
+          if (additionalStory != null || sharedStories.isNotEmpty)
             storyRepositoryProvider.overrideWithValue(
-              StoryRepository(additionalStories: [additionalStory]),
+              StoryRepository(
+                additionalStories: [?additionalStory, ...sharedStories],
+              ),
             ),
+          if (sharedStories.isNotEmpty)
+            sharedStoriesProvider.overrideWith(
+              (ref) => Stream.value(sharedStories),
+            ),
+          if (activity != null)
+            storyActivityProvider.overrideWith((ref) => Stream.value(activity)),
           if (creationService != null)
             storyCreationServiceProvider.overrideWithValue(creationService),
         ],
@@ -81,6 +91,10 @@ void main() {
       find.text('Sam carried a little telescope into the garden.'),
       findsOneWidget,
     );
+    expect(
+      find.byKey(const ValueKey('assets/images/lumi_fox.png')),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byKey(const ValueKey('next-page-button')));
     await tester.pump();
@@ -88,6 +102,10 @@ void main() {
     expect(find.text('2 / 5'), findsOneWidget);
     expect(find.text('curious'), findsOneWidget);
     expect(find.byKey(const ValueKey('feeling-check-prompt')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('assets/images/lumie_celebrate_jump.png')),
+      findsOneWidget,
+    );
 
     final lockedNext = tester.widget<IconButton>(
       find.descendant(
@@ -124,6 +142,10 @@ void main() {
     expect(find.text('3 / 5'), findsOneWidget);
     expect(
       find.text('Sam found the star and drew it in a notebook.'),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('assets/images/lumi_fox.png')),
       findsOneWidget,
     );
   });
@@ -317,6 +339,51 @@ void main() {
     await tester.pump();
     expect(find.text('1 / 5'), findsOneWidget);
   });
+
+  testWidgets(
+    'home keeps the latest story and recommends the next unread one',
+    (tester) async {
+      final firstPublicStory = Story.fromMap({
+        ...testStoryDocument,
+        'id': 'public-first',
+        'title': 'First Public Story',
+      });
+      final secondPublicStory = Story.fromMap({
+        ...testStoryDocument,
+        'id': 'public-second',
+        'title': 'Second Public Story',
+      });
+      const activity = StoryActivity([
+        StoryProgress(
+          storyId: 'public-first',
+          state: StoryReadingState(currentPageIndex: 2),
+          completed: true,
+        ),
+        StoryProgress(
+          storyId: miaStoryId,
+          state: StoryReadingState(currentPageIndex: 4),
+          completed: true,
+        ),
+      ]);
+
+      await pumpReadingApp(
+        tester,
+        sharedStories: [firstPublicStory, secondPublicStory],
+        activity: activity,
+      );
+
+      expect(find.text('First Public Story'), findsOneWidget);
+      expect(find.text('3 / 5 pages'), findsOneWidget);
+      expect(find.text('Next up: Second Public Story 📚'), findsOneWidget);
+
+      await tester.tap(
+        find.byKey(const ValueKey('start-recommended-story-button')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Second Public Story'), findsOneWidget);
+      expect(find.text('1 / 5'), findsOneWidget);
+    },
+  );
 
   testWidgets('Feeling Check blocks progress until both answers are correct', (
     tester,

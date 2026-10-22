@@ -23,6 +23,56 @@ final userStoryProvider = StreamProvider.family<Story?, String>((ref, storyId) {
   ).watchUserStory(userId: userId, storyId: storyId);
 });
 
+final sharedStoriesProvider = StreamProvider<List<Story>>((ref) {
+  if (ref.watch(currentUserProvider) == null) return Stream.value(const []);
+
+  return FirestoreStoryCatalogDataSource(ref.watch(firestoreProvider))
+      .watchStories()
+      .map((documents) => documents.map(Story.fromMap).toList(growable: false));
+});
+
+final sharedStoryProvider = StreamProvider.family<Story?, String>((
+  ref,
+  storyId,
+) {
+  if (ref.watch(currentUserProvider) == null) return Stream.value(null);
+
+  return FirestoreStoryCatalogDataSource(ref.watch(firestoreProvider))
+      .watchStory(storyId)
+      .map((document) => document == null ? null : Story.fromMap(document));
+});
+
+final personalizedStoriesProvider = StreamProvider<List<Story>>((ref) {
+  final userId = ref.watch(currentUserProvider)?.uid;
+  if (userId == null) return Stream.value(const []);
+
+  return FirestoreUserStoryCollectionDataSource(ref.watch(firestoreProvider))
+      .watchStories(userId)
+      .map((documents) => documents.map(Story.fromMap).toList(growable: false));
+});
+
+final storyActivityRepositoryProvider = Provider<StoryActivityRepository>((
+  ref,
+) {
+  return StoryActivityRepository(
+    FirestoreStoryActivityDataSource(ref.watch(firestoreProvider)),
+  );
+});
+
+final storyActivityProvider = StreamProvider<StoryActivity>((ref) {
+  final userId = ref.watch(currentUserProvider)?.uid;
+  if (userId == null) return Stream.value(const StoryActivity([]));
+  return ref.watch(storyActivityRepositoryProvider).watchActivity(userId);
+});
+
+final storyOpenedProvider = FutureProvider.family<void, String>((ref, storyId) {
+  final userId = ref.watch(currentUserProvider)?.uid;
+  if (userId == null) return Future.value();
+  return ref
+      .watch(storyActivityRepositoryProvider)
+      .recordOpened(userId: userId, storyId: storyId);
+});
+
 final latestPersonalizedStoryIdProvider = StreamProvider<String?>((ref) {
   final userId = ref.watch(currentUserProvider)?.uid;
   if (userId == null) return Stream.value(null);
@@ -61,7 +111,13 @@ final storyProvider = Provider.family<AsyncValue<Story?>, String>((
   if (ref.watch(currentUserProvider) == null) {
     return const AsyncData(null);
   }
-  return ref.watch(userStoryProvider(storyId));
+  final userStory = ref.watch(userStoryProvider(storyId));
+  if (userStory.hasValue && userStory.value != null) return userStory;
+
+  final sharedStory = ref.watch(sharedStoryProvider(storyId));
+  if (sharedStory.hasValue) return sharedStory;
+  if (userStory.hasError) return userStory;
+  return sharedStory;
 });
 
 final firebaseFunctionsProvider = Provider<FirebaseFunctions>((ref) {
@@ -70,6 +126,17 @@ final firebaseFunctionsProvider = Provider<FirebaseFunctions>((ref) {
 
 final storyCreationServiceProvider = Provider<StoryCreationService>((ref) {
   return FirebaseStoryCreationService(ref.watch(firebaseFunctionsProvider));
+});
+
+final sharedThemeStoryServiceProvider = Provider<SharedThemeStoryService>((
+  ref,
+) {
+  return FirebaseSharedThemeStoryService(ref.watch(firebaseFunctionsProvider));
+});
+
+final sharedThemeStoriesSeedProvider = FutureProvider<void>((ref) async {
+  if (ref.watch(currentUserProvider) == null) return;
+  await ref.watch(sharedThemeStoryServiceProvider).ensureStoriesExist();
 });
 
 final personalizedStoryCreationProvider =
@@ -112,16 +179,54 @@ class PersonalizedStoryCreationNotifier extends Notifier<StoryCreationState> {
   }
 }
 
+@immutable
+class StoryReadingKey {
+  const StoryReadingKey({required this.userId, required this.storyId});
+
+  final String userId;
+  final String storyId;
+
+  @override
+  bool operator ==(Object other) =>
+      other is StoryReadingKey &&
+      other.userId == userId &&
+      other.storyId == storyId;
+
+  @override
+  int get hashCode => Object.hash(userId, storyId);
+}
+
+final storyReadingKeyProvider = Provider.family<StoryReadingKey, String>((
+  ref,
+  storyId,
+) {
+  return StoryReadingKey(
+    userId: ref.watch(currentUserProvider)?.uid ?? 'signed-out',
+    storyId: storyId,
+  );
+});
+
 final storyReadingProvider =
-    NotifierProvider.family<StoryReadingNotifier, StoryReadingState, String>(
-      StoryReadingNotifier.new,
-    );
+    NotifierProvider.family<
+      StoryReadingNotifier,
+      StoryReadingState,
+      StoryReadingKey
+    >(StoryReadingNotifier.new);
 
 class StoryReadingNotifier extends Notifier<StoryReadingState> {
-  StoryReadingNotifier(String _);
+  StoryReadingNotifier(this.key);
+
+  final StoryReadingKey key;
+  bool _hydrated = false;
 
   @override
   StoryReadingState build() => const StoryReadingState();
+
+  void hydrate(StoryReadingState savedState) {
+    if (_hydrated) return;
+    _hydrated = true;
+    state = savedState;
+  }
 
   void selectAnswer(String questionId, String optionId) {
     state = state.copyWith(
